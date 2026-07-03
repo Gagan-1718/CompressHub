@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Environment
+.env
+.env.local
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+
+# Runtime storage (uploaded/compressed files)
+storage/
+backend/storage/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+test_image.jpg
+scratch_*

@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" role="img" aria-labelledby="title desc">
+  <title id="title">Sample landscape preview</title>
+  <desc id="desc">Abstract gradient landscape used as a demo image.</desc>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#020617"/>
+      <stop offset="40%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="sun" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#facc15"/>
+      <stop offset="100%" stop-color="#fb7185"/>
+    </linearGradient>
+    <linearGradient id="mountain1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="mountain2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
+    </linearGradient>
+    <linearGradient id="water" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#0ea5e9"/>
+      <stop offset="100%" stop-color="#22c55e"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Sky -->
+  <rect x="0" y="0" width="800" height="360" fill="url(#sky)"/>
+
+  <!-- Sun -->
+  <circle cx="560" cy="160" r="70" fill="url(#sun)" opacity="0.9"/>
+  <circle cx="560" cy="160" r="120" fill="url(#sun)" opacity="0.18"/>
+
+  <!-- Distant mountains -->
+  <path d="M 0 320 L 180 200 L 340 320 L 520 210 L 700 330 L 800 260 L 800 360 L 0 360 Z" fill="url(#mountain1)"/>
+
+  <!-- Foreground mountains -->
+  <path d="M -40 360 L 120 230 L 260 360 L 420 240 L 620 380 L 820 260 L 820 420 L -40 420 Z" fill="url(#mountain2)" opacity="0.95"/>
+
+  <!-- Water / foreground gradient -->
+  <rect x="0" y="360" width="800" height="240" fill="url(#water)" opacity="0.9"/>
+  <rect x="0" y="410" width="800" height="190" fill="#020617" opacity="0.65"/>
+
+  <!-- Subtle reflections -->
+  <ellipse cx="540" cy="420" rx="160" ry="26" fill="#38bdf8" opacity="0.35"/>
+  <ellipse cx="260" cy="440" rx="120" ry="18" fill="#22c55e" opacity="0.25"/>
+
+  <!-- Soft vignette -->
+  <rect x="0" y="0" width="800" height="600" fill="url(#sky)" opacity="0.35"/>
+</svg>
