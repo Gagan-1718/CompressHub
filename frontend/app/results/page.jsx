@@ -159,7 +159,14 @@ function ResultsContent() {
             href="/upload"
             className="w-full sm:w-auto btn btn-outline text-base px-8 py-3 font-semibold flex items-center justify-center gap-2"
           >
-            Compare again
+            Compress another
+          </Link>
+          <Link
+            href={`/analytics?jobId=${compressionResult.job_id}`}
+            className="w-full sm:w-auto btn btn-outline text-base px-8 py-3 font-semibold flex items-center justify-center gap-2"
+          >
+            <BarChart3 className="w-5 h-5" />
+            Detailed analytics
           </Link>
         </section>
 
@@ -173,25 +180,6 @@ function ResultsContent() {
           </section>
         )}
 
-        {/* SECTION 4: Analytics on demand */}
-        <section className="card bg-white/80 dark:bg-gray-900/90 border border-white/10 dark:border-gray-800 p-6 sm:p-7 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <p className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-              <BarChart3 className="w-4 h-4 text-blue-500" />
-              Want more insights into your compression?
-            </p>
-            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-1">
-              View detailed metrics like compression ratio, size comparison, and processing time when you need them.
-            </p>
-          </div>
-          <Link
-            href={`/analytics?jobId=${compressionResult.job_id}`}
-            className="w-full sm:w-auto btn btn-secondary text-sm font-semibold px-6 py-2.5 flex items-center justify-center gap-2"
-          >
-            <BarChart3 className="w-4 h-4" />
-            View detailed analytics
-          </Link>
-        </section>
       </div>
     </div>
   )
