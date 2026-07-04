@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { ArrowRight, Upload, BrainCircuit, Binary, Download, ShieldCheck, Gauge, FlaskConical } from 'lucide-react'
 import LightRays from '@/components/LightRays'
+import InteractiveDots from '@/components/InteractiveDots'
 
 export default function HomePage() {
   return (
@@ -28,14 +29,9 @@ export default function HomePage() {
             distortion={0}
           />
         </div>
-        {/* Faint but present dot grid, on top so the ray shows between dots */}
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage: 'radial-gradient(circle, rgba(190, 175, 240, 0.22) 1.3px, transparent 1.7px)',
-            backgroundSize: '24px 24px',
-          }}
-        />
+        {/* Faint but present dot grid (drifts with the cursor), on top so the
+            ray shows between the dots */}
+        <InteractiveDots />
         {/* Deep vignette for a rich, royal feel */}
         <div
           className="absolute inset-0"
