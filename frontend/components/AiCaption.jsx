@@ -58,8 +58,6 @@ export default function AiCaption({ imageUrl }) {
     workerRef.current.postMessage({ image: imageUrl })
   }
 
-  const busy = state === 'downloading' || state === 'analyzing'
-
   return (
     <div className="rounded-xl border border-purple-500/20 bg-purple-500/5 p-5">
       <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -131,11 +129,6 @@ export default function AiCaption({ imageUrl }) {
         </div>
       )}
 
-      {busy && (
-        <p className="text-[11px] text-gray-500 mt-3">
-          First run downloads the model (~200MB) and is slow; after that it&rsquo;s cached and quick.
-        </p>
-      )}
     </div>
   )
 }
