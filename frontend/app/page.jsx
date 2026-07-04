@@ -2,37 +2,50 @@
 
 import Link from 'next/link'
 import { ArrowRight, Upload, BrainCircuit, Binary, Download, ShieldCheck, Gauge, FlaskConical } from 'lucide-react'
-import DotField from '@/components/DotField'
-import LightRays from '@/components/LightRays'
 
 export default function HomePage() {
   return (
-    <div className="relative min-h-screen bg-[#050406] overflow-hidden">
-      {/* Full-page royal background: dot field + light rays, fixed so it flows
-          seamlessly behind the header and the whole page as it scrolls */}
-      <div className="fixed inset-0 -z-10">
-        <DotField
-          className="absolute inset-0 w-full h-full"
-          dotRadius={1.6}
-          dotSpacing={22}
-          cursorRadius={400}
-          bulgeStrength={32}
-          glowRadius={110}
-          gradientFrom="rgba(91, 55, 183, 0.12)"
-          gradientTo="rgba(120, 90, 190, 0.03)"
-          glowColor="#050406"
-        />
-        <LightRays
+    <div className="relative min-h-screen bg-[#040306] overflow-hidden">
+      {/* Full-page background: very dark, with a subtle light ray from the top
+          and a very faint dot texture. Fixed so it flows behind the header and
+          the whole page — deliberately quiet so it never dominates content. */}
+      <div className="fixed inset-0 -z-10 bg-[#040306]">
+        {/* Very transparent dot grid */}
+        <div
           className="absolute inset-0"
-          raysColor="#e9d9ff"
-          lightSpread={0.8}
-          rayLength={2.1}
-          fadeDistance={0.45}
-          followMouse
-          mouseInfluence={0.18}
+          style={{
+            backgroundImage: 'radial-gradient(circle, rgba(165, 145, 225, 0.05) 1px, transparent 1.4px)',
+            backgroundSize: '26px 26px',
+          }}
+        />
+        {/* Soft royal glow from top-center */}
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              'radial-gradient(ellipse 42% 46% at 50% -6%, rgba(214, 196, 255, 0.10), transparent 55%),' +
+              'radial-gradient(ellipse 60% 42% at 50% 4%, rgba(96, 56, 176, 0.10), transparent 62%)',
+          }}
+        />
+        {/* Faint light-ray streaks fanning from the top-center */}
+        <div
+          className="absolute inset-x-0 top-0 h-[75%]"
+          style={{
+            background:
+              'repeating-conic-gradient(from 180deg at 50% 0%,' +
+              'transparent 0deg 3deg, rgba(224, 210, 255, 0.045) 4deg, transparent 5deg 7.5deg)',
+            WebkitMaskImage: 'radial-gradient(ellipse 55% 95% at 50% 0%, black, transparent 62%)',
+            maskImage: 'radial-gradient(ellipse 55% 95% at 50% 0%, black, transparent 62%)',
+            filter: 'blur(7px)',
+          }}
         />
         {/* Deep vignette for a rich, royal feel */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_15%,transparent_35%,rgba(0,0,0,0.55)_100%)]" />
+        <div
+          className="absolute inset-0"
+          style={{
+            background: 'radial-gradient(ellipse at 50% 6%, transparent 52%, rgba(0,0,0,0.6) 100%)',
+          }}
+        />
       </div>
 
       {/* Hero */}
