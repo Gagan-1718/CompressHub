@@ -27,14 +27,17 @@ from ..services import ImageProcessor, HuffmanCompressionService, ImageProcessin
 from ..services.compression.analysis import analyze_compression
 from ..services.image_processing import extract_pixel_array, reconstruct_image
 from ..utils.metrics import MetricsCalculator
+from ..utils import jobstore
 from ..models import UploadResponse, ImageInfo
 from pathlib import Path
 from PIL import Image
+import numpy as np
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/compression", tags=["compression"])
 
-# In-memory job tracking (will be replaced with database)
+# In-memory cache for the live request flow; completed jobs are also
+# persisted to SQLite (utils.jobstore) so the Library survives restarts.
 compression_jobs = {}
 
 
@@ -50,6 +53,29 @@ def _parse_huffman_container(container: bytes):
     meta = json.loads(container[4:4 + meta_len].decode('utf-8'))
     compressed_bytes = container[4 + meta_len:]
     return meta, compressed_bytes
+
+
+def _decode_container_file(path: str) -> Image.Image:
+    """Decode a .huff container from disk back to a PIL image (lossless)."""
+    meta, compressed_bytes = _parse_huffman_container(Path(path).read_bytes())
+    array, _ms = HuffmanCompressionService().decompress(compressed_bytes, meta)
+    return Image.fromarray(np.ascontiguousarray(array))
+
+
+def _image_to_data_url(image: Image.Image, fmt: str = 'PNG') -> str:
+    buffer = io.BytesIO()
+    image.save(buffer, format=fmt)
+    mime = 'image/png' if fmt == 'PNG' else 'image/jpeg'
+    return f"data:{mime};base64,{base64.b64encode(buffer.getvalue()).decode('utf-8')}"
+
+
+def _make_thumbnail(image: Image.Image, max_px: int = 320) -> str:
+    """Small JPEG data URL for Library cards (kept small for the DB)."""
+    thumb = image.copy()
+    thumb.thumbnail((max_px, max_px))
+    buffer = io.BytesIO()
+    thumb.convert('RGB').save(buffer, format='JPEG', quality=80)
+    return f"data:image/jpeg;base64,{base64.b64encode(buffer.getvalue()).decode('utf-8')}"
 
 
 def perform_compression(job_id: str, quality: str = 'high'):
@@ -178,6 +204,20 @@ def perform_compression(job_id: str, quality: str = 'high'):
             'metrics': metrics,
         })
 
+        # Persist for the Library (survives backend restarts)
+        try:
+            jobstore.save_completed(
+                job_id=job_id,
+                original_size=original_size,
+                compressed_size=compressed_size,
+                savings_percent=savings_percent,
+                compressed_path=str(compressed_path),
+                metrics=metrics,
+                thumbnail=_make_thumbnail(compressed_image),
+            )
+        except Exception as store_error:
+            logger.warning(f"Failed to persist job {job_id} to library: {store_error}")
+
         logger.info(f"Compression completed: {job_id} ({savings_percent:.1f}% savings)")
 
     except Exception as e:
@@ -246,7 +286,8 @@ async def upload_image(file: UploadFile = File(...)):
             'image_info': image_info,
             'upload_time': time.time(),
         }
-        
+        jobstore.save_upload(job_id, file.filename, str(filepath))
+
         logger.info(f"Image uploaded successfully: {file.filename} (Job ID: {job_id})")
         
         return UploadResponse(
@@ -267,34 +308,67 @@ async def upload_image(file: UploadFile = File(...)):
         )
 
 
+@router.get("/jobs")
+async def list_jobs(limit: int = 100):
+    """
+    List previously compressed images (the Library).
+
+    Served from the persistent store, so history survives backend restarts.
+    """
+    jobs = jobstore.list_completed(limit=min(max(limit, 1), 500))
+    return {'jobs': jobs, 'count': len(jobs)}
+
+
 @router.get("/job/{job_id}")
 async def get_job_status(job_id: str):
     """
     Get compression job status
-    
+
     Args:
         job_id: Job ID to query
-        
+
     Returns:
         Job status and metadata
-        
+
     Raises:
         HTTPException: If job not found
     """
-    if job_id not in compression_jobs:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Job not found: {job_id}"
-        )
-    
-    job = compression_jobs[job_id]
+    job = compression_jobs.get(job_id)
+
+    if job is None:
+        # Fall back to the persistent store (e.g. after a backend restart):
+        # metrics come from the DB; images are regenerated from disk.
+        db_job = jobstore.get_job(job_id)
+        if db_job is None:
+            raise HTTPException(status_code=404, detail=f"Job not found: {job_id}")
+
+        response = {
+            'job_id': job_id,
+            'filename': db_job['filename'],
+            'status': db_job['status'],
+            'file_size': db_job.get('original_size'),
+        }
+        if db_job['status'] == 'completed':
+            response['metrics'] = db_job.get('metrics', {})
+            filepath = db_job.get('filepath')
+            if filepath and Path(filepath).exists():
+                original = Image.open(filepath)
+                original = ImageProcessingModule.convert_to_rgb(original)
+                response['original_image'] = _image_to_data_url(original)
+            compressed_path = db_job.get('compressed_path')
+            if compressed_path and Path(compressed_path).exists():
+                response['compressed_image'] = _image_to_data_url(
+                    _decode_container_file(compressed_path)
+                )
+        return response
+
     response = {
         'job_id': job_id,
         'filename': job['filename'],
         'status': job['status'],
         'file_size': job['file_size'],
     }
-    
+
     # Include results if compression is completed
     if job['status'] == 'completed':
         response['metrics'] = job.get('metrics', {})
@@ -302,7 +376,7 @@ async def get_job_status(job_id: str):
         response['compressed_image'] = f"data:image/png;base64,{job.get('compressed_base64', '')}"
     elif job['status'] == 'failed':
         response['error'] = job.get('error', 'Unknown error')
-    
+
     return response
 
 
@@ -449,28 +523,27 @@ async def download_compressed_image(job_id: str, raw: bool = False):
     Raises:
         HTTPException: If job not found or not completed
     """
-    if job_id not in compression_jobs:
+    job = compression_jobs.get(job_id) or jobstore.get_job(job_id)
+    if job is None:
         raise HTTPException(
             status_code=404,
             detail=f"Job not found: {job_id}"
         )
-    
-    job = compression_jobs[job_id]
-    
+
     if job['status'] != 'completed':
         raise HTTPException(
             status_code=400,
             detail=f"Job status is {job['status']}, cannot download"
         )
-    
+
     original_filename = job['filename']
     name = original_filename.rsplit('.', 1)[0] if '.' in original_filename else original_filename
+    compressed_path = job.get('compressed_path')
 
     if raw:
         # The actual Huffman-coded artifact (tree metadata + coded bytes).
         # Not a standard image format -- no image viewer can open this file;
         # it exists for anyone who wants the real compressed bytes.
-        compressed_path = job.get('compressed_path')
         if not compressed_path or not Path(compressed_path).exists():
             raise HTTPException(status_code=404, detail="Compressed file not found")
 
@@ -484,10 +557,16 @@ async def download_compressed_image(job_id: str, raw: bool = False):
     # so this is pixel-identical to what was compressed -- decoded back to a
     # normal format because raw Huffman-coded bytes aren't a viewable image.
     compressed_base64 = job.get('compressed_base64')
-    if not compressed_base64:
+    if compressed_base64:
+        png_bytes = base64.b64decode(compressed_base64)
+    elif compressed_path and Path(compressed_path).exists():
+        # Library job from a previous run: decode the .huff from disk
+        buffer = io.BytesIO()
+        _decode_container_file(compressed_path).save(buffer, format='PNG')
+        png_bytes = buffer.getvalue()
+    else:
         raise HTTPException(status_code=404, detail="Compressed image not found")
 
-    png_bytes = base64.b64decode(compressed_base64)
     return Response(
         content=png_bytes,
         media_type='image/png',
@@ -511,22 +590,25 @@ async def delete_job(job_id: str):
     Raises:
         HTTPException: If job not found
     """
-    if job_id not in compression_jobs:
+    in_memory = compression_jobs.pop(job_id, None)
+    db_job = jobstore.delete_job(job_id)
+
+    if in_memory is None and db_job is None:
         raise HTTPException(
             status_code=404,
             detail=f"Job not found: {job_id}"
         )
-    
-    job = compression_jobs[job_id]
-    
-    # TODO: Cleanup files
-    # from utils import delete_file
-    # delete_file(Path(job['filepath']))
-    # if 'compressed_filepath' in job:
-    #     delete_file(Path(job['compressed_filepath']))
-    
-    del compression_jobs[job_id]
-    
+
+    # Clean up files on disk
+    job = db_job or in_memory
+    for key in ('filepath', 'compressed_path'):
+        path = job.get(key)
+        if path:
+            try:
+                Path(path).unlink(missing_ok=True)
+            except OSError as e:
+                logger.warning(f"Could not delete {path}: {e}")
+
     return {
         'job_id': job_id,
         'message': 'Job deleted successfully'

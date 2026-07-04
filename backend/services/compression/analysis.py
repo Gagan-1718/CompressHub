@@ -4,9 +4,8 @@ Compression analysis: algorithm comparison, entropy, and code statistics.
 Everything here is computed on the side for educational display -- it never
 affects the actual compressed artifact. Three views are produced:
 
-1. Algorithm comparison: the same pixel data compressed three ways
-   (plain Huffman, delta + Huffman, DEFLATE/zlib as a real-world reference)
-   so the effect of the prediction filter is visible.
+1. Algorithm comparison: the same pixel data compressed with and without
+   the delta prediction filter, so its effect is visible.
 2. Entropy analysis: Shannon entropy of the byte distribution before and
    after delta filtering, next to the bits/byte the encoder actually
    achieved. Huffman coding can never beat the entropy floor, so
@@ -14,7 +13,6 @@ affects the actual compressed artifact. Three views are produced:
 3. Code table: the most frequent delta values with their assigned Huffman
    codes, demonstrating that frequent symbols receive shorter codes.
 """
-import zlib
 from typing import Dict, Any
 
 import numpy as np
@@ -62,7 +60,6 @@ def analyze_compression(pixel_array: np.ndarray, actual_compressed_size: int) ->
 
     # --- 1. Algorithm comparison -----------------------------------------
     plain_size = _huffman_compressed_size(raw_bytes)
-    deflate_size = len(zlib.compress(raw_bytes, 6))
 
     def pct(compressed: int) -> float:
         return round((1 - compressed / original_size) * 100, 2)
@@ -80,12 +77,6 @@ def analyze_compression(pixel_array: np.ndarray, actual_compressed_size: int) ->
             'compressed_bytes': actual_compressed_size,
             'savings_percent': pct(actual_compressed_size),
             'is_current': True,
-        },
-        {
-            'name': 'DEFLATE (zlib)',
-            'description': 'Industry standard (PNG/ZIP) for reference',
-            'compressed_bytes': deflate_size,
-            'savings_percent': pct(deflate_size),
         },
     ]
 

@@ -8,7 +8,7 @@ import { getApiUrl } from '@/lib/api'
 const ACCEPTED_FORMATS = ['image/jpeg', 'image/png', 'image/bmp', 'image/webp', 'image/gif', 'image/tiff']
 const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
 
-export default function UploadDropZone({ onImageSelect }) {
+export default function UploadDropZone({ onImagesSelect }) {
   const fileInputRef = useRef(null)
   const [isDragActive, setIsDragActive] = useState(false)
   const [error, setError] = useState(null)
@@ -28,84 +28,72 @@ export default function UploadDropZone({ onImageSelect }) {
     return true
   }
 
-  const uploadFile = async (file) => {
-    console.log('[UPLOAD] Starting upload for:', file.name)
-    
-    if (!validateFile(file)) {
-      console.log('[UPLOAD] Validation failed')
-      return
+  // Upload a single file to the backend; returns the image record
+  const uploadOne = async (file) => {
+    const preview = await new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = (e) => resolve(e.target.result)
+      reader.onerror = () => reject(new Error('Failed to read file'))
+      reader.readAsDataURL(file)
+    })
+
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const response = await fetch(getApiUrl('/api/compression/upload'), {
+      method: 'POST',
+      body: formData,
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      // Surface the backend's actual error detail; only fall back to the
+      // generic status text if the body isn't JSON.
+      let message = `Upload failed: ${response.statusText}`
+      try {
+        const errorData = JSON.parse(errorText)
+        if (errorData.detail) message = errorData.detail
+      } catch (e) {
+        // non-JSON error body; keep the generic message
+      }
+      throw new Error(`${file.name}: ${message}`)
     }
+
+    const data = await response.json()
+    return {
+      file,
+      preview,
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      job_id: data.job_id,
+      image_info: data.image_info,
+      width: data.image_info?.width,
+      height: data.image_info?.height,
+    }
+  }
+
+  const uploadFiles = async (fileList) => {
+    const files = Array.from(fileList).filter(validateFile)
+    if (files.length === 0) return
 
     setIsLoading(true)
     setError(null)
-    
-    try {
-      // Step 1: Create preview
-      console.log('[UPLOAD] Creating preview...')
-      const preview = await new Promise((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = (e) => {
-          console.log('[UPLOAD] Preview created')
-          resolve(e.target.result)
-        }
-        reader.onerror = () => reject(new Error('Failed to read file'))
-        reader.readAsDataURL(file)
-      })
 
-      // Step 2: Upload to backend
-      console.log('[UPLOAD] Sending to backend...')
-      const formData = new FormData()
-      formData.append('file', file)
-      
-      const response = await fetch(getApiUrl('/api/compression/upload'), {
-        method: 'POST',
-        body: formData,
-      })
+    const results = await Promise.allSettled(files.map(uploadOne))
+    const uploaded = results.filter((r) => r.status === 'fulfilled').map((r) => r.value)
+    const failures = results.filter((r) => r.status === 'rejected')
 
-      console.log('[UPLOAD] Backend response status:', response.status)
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error('[UPLOAD] Backend error:', errorText)
-
-        // Surface the backend's actual error detail; only fall back to the
-        // generic status text if the body isn't JSON. (Throwing inside the
-        // try block would get caught by its own catch and swallowed.)
-        let message = `Upload failed: ${response.statusText}`
-        try {
-          const errorData = JSON.parse(errorText)
-          if (errorData.detail) message = errorData.detail
-        } catch (e) {
-          // non-JSON error body; keep the generic message
-        }
-        throw new Error(message)
-      }
-
-      const data = await response.json()
-      console.log('[UPLOAD] Backend response:', data)
-
-      // Step 3: Call parent callback
-      console.log('[UPLOAD] Calling onImageSelect...')
-      onImageSelect({
-        file,
-        preview,
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        job_id: data.job_id,
-        image_info: data.image_info,
-        width: data.image_info?.width,
-        height: data.image_info?.height,
-      })
-
-      console.log('[UPLOAD] Upload complete!')
-    } catch (err) {
-      console.error('[UPLOAD] Error:', err.message)
-      setError(err.message || 'Upload failed')
-    } finally {
-      setIsLoading(false)
+    if (failures.length > 0) {
+      setError(failures.map((f) => f.reason?.message || 'Upload failed').join(' · '))
     }
+    if (uploaded.length > 0) {
+      onImagesSelect(uploaded)
+    }
+    setIsLoading(false)
   }
+
+  const uploadFile = (file) => uploadFiles([file])
 
   // Drag handlers
   const handleDragEnter = (e) => {
@@ -130,13 +118,11 @@ export default function UploadDropZone({ onImageSelect }) {
   const handleDrop = (e) => {
     e.preventDefault()
     e.stopPropagation()
-    console.log('[DROP] Files dropped')
     setIsDragActive(false)
 
     const files = e.dataTransfer?.files
-    if (files?.[0]) {
-      console.log('[DROP] Processing dropped file:', files[0].name)
-      uploadFile(files[0])
+    if (files?.length) {
+      uploadFiles(files)
     }
   }
 
@@ -165,11 +151,10 @@ export default function UploadDropZone({ onImageSelect }) {
   // File input handler
   const handleFileChange = (e) => {
     const files = e.target.files
-    console.log('[INPUT] File selected:', files?.[0]?.name)
-    if (files?.[0]) {
-      uploadFile(files[0])
+    if (files?.length) {
+      uploadFiles(files)
     }
-    // Reset input so same file can be selected again
+    // Reset input so the same files can be selected again
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
@@ -192,6 +177,7 @@ export default function UploadDropZone({ onImageSelect }) {
       <input
         ref={fileInputRef}
         type="file"
+        multiple
         onChange={handleFileChange}
         accept="image/jpeg,image/png,image/bmp,image/webp,image/gif,image/tiff,.jfif"
         className="hidden"
@@ -226,11 +212,11 @@ export default function UploadDropZone({ onImageSelect }) {
         </div>
 
         <h3 className="text-2xl font-bold text-white mb-2 transition-colors">
-          {isLoading ? 'Processing Your Image...' : isDragActive ? 'Release to Upload' : 'Drop Your Image Here'}
+          {isLoading ? 'Uploading...' : isDragActive ? 'Release to Upload' : 'Drop Your Images Here'}
         </h3>
 
         <p className="text-gray-400 mb-6 transition-colors">
-          or click to browse from your device
+          or click to browse &mdash; multiple files welcome
         </p>
 
         <div className="flex flex-wrap gap-2 justify-center mb-6">

@@ -13,7 +13,7 @@ The filter itself compresses nothing (output is byte-for-byte the same size). **
 | Image type | Plain Huffman | Delta + Huffman |
 |---|---|---|
 | Smooth gradient | 5.2% saved | **87.5% saved** |
-| Synthetic landscape | 5.5% saved | **41.1% saved** (beats zlib's 24.2% here) |
+| Synthetic landscape | 5.5% saved | **41.1% saved** |
 | Random noise | ~0% | ~0% (honest worst case — no algorithm compresses noise) |
 
 Compression is fully lossless: every image is round-trip verified (decompressed output is pixel-identical to the input).
@@ -21,7 +21,7 @@ Compression is fully lossless: every image is round-trip verified (decompressed 
 ## Features
 
 - **Upload → compress → results** flow with side-by-side original/compressed comparison and a fullscreen lightbox
-- **Algorithm comparison** on every run: plain Huffman vs. delta+Huffman vs. DEFLATE (zlib) on the same pixels
+- **Algorithm comparison** on every run: plain Huffman vs. delta+Huffman on the same pixels, showing exactly what the filter buys
 - **Entropy analysis**: Shannon entropy before/after filtering vs. bits/byte actually achieved (typical coding efficiency: 88–99% of the theoretical floor)
 - **Live Huffman code table**: the most frequent pixel deltas and the actual variable-length codes the tree assigned them
 - **One-click sample images** (best case / typical / worst case) to explore algorithm behavior instantly

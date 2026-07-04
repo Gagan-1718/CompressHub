@@ -28,6 +28,12 @@ export default function Header() {
           >
             How it works
           </Link>
+          <Link
+            href="/library"
+            className="text-gray-300 hover:text-white font-medium transition-colors duration-200 hidden sm:block"
+          >
+            Library
+          </Link>
 
           <Link
             href="/upload"

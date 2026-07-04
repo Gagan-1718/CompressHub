@@ -1,6 +1,7 @@
 import './globals.css'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
+import MouseGlow from '@/components/MouseGlow'
 import { ToastProvider } from '@/components/Toast'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 
@@ -15,6 +16,7 @@ export default function RootLayout({ children }) {
       <body className="bg-black text-white transition-colors duration-300">
         <ErrorBoundary>
           <ToastProvider>
+            <MouseGlow />
             <div className="flex flex-col min-h-screen">
               <Header />
               <main className="flex-grow pt-20">{children}</main>

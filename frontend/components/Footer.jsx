@@ -16,6 +16,9 @@ export default function Footer() {
             <Link href="/upload" className="text-gray-400 hover:text-white transition-colors">
               Compress
             </Link>
+            <Link href="/library" className="text-gray-400 hover:text-white transition-colors">
+              Library
+            </Link>
             <Link href="/how-it-works" className="text-gray-400 hover:text-white transition-colors">
               How it works
             </Link>

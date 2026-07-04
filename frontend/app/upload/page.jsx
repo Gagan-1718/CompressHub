@@ -2,11 +2,12 @@
 
 import { useState } from 'react'
 import UploadDropZone from '@/components/UploadDropZone'
-import ImagePreview from '@/components/ImagePreview'
 import CompressionForm from '@/components/CompressionForm'
+import { X, Plus } from 'lucide-react'
 
 export default function UploadPage() {
-  const [uploadedImage, setUploadedImage] = useState(null)
+  const [uploadedImages, setUploadedImages] = useState([])
+  const [showDropZone, setShowDropZone] = useState(true)
 
   const formatFileSize = (bytes) => {
     if (bytes == null) return '--'
@@ -17,19 +18,24 @@ export default function UploadPage() {
     return `${kb.toFixed(2)} KB`
   }
 
-  const getFileTypeLabel = (type) => {
-    if (!type) return 'Unknown'
-    const match = type.match(/image\/(\w+)/)
-    return match ? match[1].toUpperCase() : type
+  const handleImagesSelect = (images) => {
+    setUploadedImages((prev) => {
+      // De-dupe by job_id in case the same file is added twice
+      const seen = new Set(prev.map((img) => img.job_id))
+      return [...prev, ...images.filter((img) => !seen.has(img.job_id))]
+    })
+    setShowDropZone(false)
   }
 
-  const handleImageSelect = (imageData) => {
-    setUploadedImage(imageData)
+  const handleRemove = (jobId) => {
+    setUploadedImages((prev) => {
+      const next = prev.filter((img) => img.job_id !== jobId)
+      if (next.length === 0) setShowDropZone(true)
+      return next
+    })
   }
 
-  const handleClear = () => {
-    setUploadedImage(null)
-  }
+  const hasImages = uploadedImages.length > 0
 
   return (
     <div className="min-h-screen bg-black pb-16">
@@ -40,46 +46,70 @@ export default function UploadPage() {
         <div className="absolute bottom-1/4 -right-40 w-96 h-96 bg-purple-600/10 rounded-full blur-3xl animate-float" style={{ animationDelay: '1s' }} />
       </div>
 
-      <div className="relative z-10 max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-10 text-center animate-fade-in">
           <h1 className="text-4xl sm:text-5xl font-black text-white mb-3">
-            Compress an image
+            Compress your images
           </h1>
           <p className="text-lg text-gray-400 max-w-xl mx-auto">
-            Lossless Huffman compression, built live for your image&rsquo;s pixels
+            Lossless Huffman compression &mdash; one image or a whole batch
           </p>
         </div>
 
-        {!uploadedImage ? (
-          <div className="animate-fade-in">
-            <UploadDropZone onImageSelect={handleImageSelect} />
-          </div>
-        ) : (
-          <div className="space-y-6 animate-fade-in">
-            {/* Preview with inline metadata */}
-            <div className="card p-6 sm:p-8 border border-white/10">
-              <ImagePreview image={uploadedImage} />
+        <div className="space-y-6 animate-fade-in">
+          {(showDropZone || !hasImages) && (
+            <UploadDropZone onImagesSelect={handleImagesSelect} />
+          )}
 
-              <div className="mt-6 pt-5 border-t border-white/10 flex flex-wrap items-center gap-x-8 gap-y-3 text-sm">
-                <span className="text-white font-medium truncate max-w-[16rem]" title={uploadedImage.name}>
-                  {uploadedImage.name}
-                </span>
-                <span className="text-gray-400">{formatFileSize(uploadedImage.size)}</span>
-                <span className="text-gray-400">{uploadedImage.width}×{uploadedImage.height}</span>
-                <span className="text-gray-400">{getFileTypeLabel(uploadedImage.type)}</span>
-                <button
-                  onClick={handleClear}
-                  className="ml-auto text-blue-400 hover:text-blue-300 font-medium transition-colors"
-                >
-                  Change image
-                </button>
+          {hasImages && (
+            <>
+              {/* Uploaded images grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                {uploadedImages.map((img) => (
+                  <div
+                    key={img.job_id}
+                    className="group relative rounded-xl overflow-hidden border border-white/10 bg-black/50 hover:border-blue-500/40 transition-all duration-300 hover:-translate-y-1"
+                  >
+                    <div className="aspect-square w-full">
+                      <img
+                        src={img.preview}
+                        alt={img.name}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <button
+                      onClick={() => handleRemove(img.job_id)}
+                      className="absolute top-2 right-2 p-1.5 rounded-full bg-black/70 text-gray-300 opacity-0 group-hover:opacity-100 hover:bg-red-500/80 hover:text-white transition-all"
+                      aria-label={`Remove ${img.name}`}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                    <div className="absolute bottom-0 inset-x-0 p-2 bg-gradient-to-t from-black/90 to-transparent">
+                      <p className="text-xs text-white font-medium truncate" title={img.name}>{img.name}</p>
+                      <p className="text-[10px] text-gray-400">
+                        {formatFileSize(img.size)} · {img.width}×{img.height}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Add more tile */}
+                {!showDropZone && (
+                  <button
+                    onClick={() => setShowDropZone(true)}
+                    className="aspect-square rounded-xl border-2 border-dashed border-white/15 hover:border-blue-500/50 hover:bg-blue-500/5 flex flex-col items-center justify-center gap-2 text-gray-500 hover:text-blue-400 transition-all duration-300"
+                  >
+                    <Plus className="w-7 h-7" />
+                    <span className="text-xs font-medium">Add more</span>
+                  </button>
+                )}
               </div>
-            </div>
 
-            <CompressionForm image={uploadedImage} />
-          </div>
-        )}
+              <CompressionForm images={uploadedImages} />
+            </>
+          )}
+        </div>
       </div>
     </div>
   )

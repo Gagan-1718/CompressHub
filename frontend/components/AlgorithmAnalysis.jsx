@@ -27,10 +27,10 @@ export default function AlgorithmAnalysis({ analysis, fileSizes }) {
       <div>
         <div className="flex items-center gap-2 mb-1">
           <FlaskConical className="w-5 h-5 text-blue-500" />
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white">Same image, three algorithms</h3>
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white">What the prediction filter buys you</h3>
         </div>
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-5">
-          Space saved compressing this image&rsquo;s raw pixel data ({fileSizes?.original_formatted}) with each method
+          The same raw pixel data ({fileSizes?.original_formatted}) compressed with and without the delta filter
         </p>
 
         <div className="space-y-4">
@@ -73,10 +73,10 @@ export default function AlgorithmAnalysis({ analysis, fileSizes }) {
         </div>
 
         <p className="text-xs text-gray-600 dark:text-gray-400 mt-4 p-3 bg-blue-500/5 border border-blue-500/15 rounded-lg leading-relaxed">
-          <strong className="text-gray-800 dark:text-gray-200">Why does DEFLATE usually win?</strong>{' '}
-          It combines LZ77 (which exploits <em>repeated patterns</em>) with Huffman coding. Ours is pure
-          entropy coding: it only exploits how <em>frequently</em> each value occurs &mdash; the delta filter
-          is what turns pixel smoothness into that frequency skew.
+          <strong className="text-gray-800 dark:text-gray-200">Why the filter helps:</strong>{' '}
+          Huffman coding only exploits how <em>frequently</em> each value occurs. Raw pixels are spread
+          across many values, but neighboring pixels are similar &mdash; so their <em>differences</em> cluster
+          around zero, giving the coder a skewed distribution it can actually compress.
         </p>
       </div>
 

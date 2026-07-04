@@ -7,53 +7,70 @@ import { LoadingOverlay } from './Loading'
 import { getApiUrl } from '@/lib/api'
 import { useToast } from './Toast'
 
-export default function CompressionForm({ image }) {
+export default function CompressionForm({ images }) {
   const router = useRouter()
   const { addToast } = useToast()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [progressText, setProgressText] = useState('')
+
+  const count = images?.length || 0
 
   const handleCompress = async () => {
-    if (!image.job_id) {
-      setError('Image not properly uploaded. Please upload again.')
-      return
-    }
+    if (count === 0) return
 
     setIsLoading(true)
     setError(null)
 
-    try {
-      const response = await fetch(
-        `${getApiUrl('/api/compression/compress')}/${image.job_id}`,
-        { method: 'POST' }
-      )
+    const completed = []
+    const failed = []
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(
-          errorData.message || errorData.detail || 'Compression failed'
+    for (let i = 0; i < images.length; i++) {
+      const img = images[i]
+      setProgressText(count > 1 ? `Compressing ${i + 1} of ${count} — ${img.name}` : `Building the Huffman tree for ${img.name}...`)
+      try {
+        const response = await fetch(
+          `${getApiUrl('/api/compression/compress')}/${img.job_id}`,
+          { method: 'POST' }
         )
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          throw new Error(errorData.detail || errorData.message || 'Compression failed')
+        }
+        const result = await response.json()
+        completed.push(result.job_id)
+      } catch (err) {
+        failed.push(`${img.name}: ${err.message}`)
       }
-
-      const result = await response.json()
-      const saved = result.metrics?.compression?.percentage
-      addToast(
-        saved != null ? `Compressed — ${saved.toFixed(1)}% smaller` : 'Compression complete',
-        'success'
-      )
-      router.push(`/results?jobId=${result.job_id}`)
-    } catch (err) {
-      const errorMessage = err.message || 'An error occurred during compression'
-      setError(errorMessage)
-      addToast(errorMessage, 'error')
-      console.error('Compression error:', err)
-      setIsLoading(false)
     }
+
+    if (completed.length === 0) {
+      setIsLoading(false)
+      const message = failed.join(' · ') || 'Compression failed'
+      setError(message)
+      addToast(message, 'error')
+      return
+    }
+
+    if (failed.length > 0) {
+      addToast(`${failed.length} image(s) failed: ${failed.join(' · ')}`, 'error')
+    }
+
+    addToast(
+      completed.length === 1 ? 'Compression complete' : `${completed.length} images compressed`,
+      'success'
+    )
+
+    router.push(
+      completed.length === 1
+        ? `/results?jobId=${completed[0]}`
+        : `/results?jobIds=${completed.join(',')}`
+    )
   }
 
   return (
     <>
-      <LoadingOverlay isVisible={isLoading} message="Building the Huffman tree for your image..." />
+      <LoadingOverlay isVisible={isLoading} message={progressText || 'Compressing...'} />
 
       <div className="card card-premium flex flex-col gap-5">
         {/* Algorithm summary — the only "setting" is that there are none */}
@@ -64,7 +81,7 @@ export default function CompressionForm({ image }) {
           <div>
             <h3 className="font-bold text-white">Delta prediction + Huffman coding</h3>
             <p className="text-gray-400 text-sm leading-relaxed mt-1">
-              A Huffman tree is built specifically for this image&rsquo;s pixel statistics.
+              A Huffman tree is built specifically for each image&rsquo;s pixel statistics.
               No quality settings &mdash; the compression is fully lossless.
             </p>
           </div>
@@ -84,7 +101,7 @@ export default function CompressionForm({ image }) {
 
         <button
           onClick={handleCompress}
-          disabled={isLoading || !image?.file}
+          disabled={isLoading || count === 0}
           className="w-full btn btn-primary text-lg py-4 disabled:opacity-60 disabled:cursor-not-allowed"
         >
           {isLoading ? (
@@ -95,7 +112,7 @@ export default function CompressionForm({ image }) {
           ) : (
             <>
               <Sparkles className="w-5 h-5" />
-              Compress image
+              {count > 1 ? `Compress ${count} images` : 'Compress image'}
             </>
           )}
         </button>

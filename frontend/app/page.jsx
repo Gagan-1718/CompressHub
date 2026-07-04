@@ -65,7 +65,7 @@ export default function HomePage() {
             <div className="rounded-xl border border-blue-500/25 bg-blue-500/5 p-5">
               <p className="text-xs text-gray-400 mb-1">Landscape image</p>
               <p className="text-3xl font-black text-blue-300">41% smaller</p>
-              <p className="text-xs text-gray-500 mt-2">Beats zlib&rsquo;s 24% on the same pixels</p>
+              <p className="text-xs text-gray-500 mt-2">Typical case: structure plus mild noise</p>
             </div>
             <div className="rounded-xl border border-white/10 bg-white/5 p-5">
               <p className="text-xs text-gray-400 mb-1">Random noise</p>
@@ -85,7 +85,7 @@ export default function HomePage() {
             </div>
             <div className="flex items-center gap-3 text-sm text-gray-300">
               <FlaskConical className="w-5 h-5 text-purple-400 flex-shrink-0" />
-              Compared live against DEFLATE on every image
+              Live Huffman code table for every image
             </div>
           </div>
         </div>
