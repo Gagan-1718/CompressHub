@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { ArrowRight, Upload, BrainCircuit, Binary, Download, ShieldCheck, Gauge, FlaskConical } from 'lucide-react'
 import LightRays from '@/components/LightRays'
-import InteractiveDots from '@/components/InteractiveDots'
+import DotField from '@/components/DotField'
 
 export default function HomePage() {
   return (
@@ -29,9 +29,11 @@ export default function HomePage() {
             distortion={0}
           />
         </div>
-        {/* Faint but present dot grid (drifts with the cursor), on top so the
-            ray shows between the dots */}
-        <InteractiveDots />
+        {/* Interactive dot field (dots near the cursor glow + bulge), on top so
+            the ray shows between the dots */}
+        <div className="absolute inset-0">
+          <DotField />
+        </div>
         {/* Deep vignette for a rich, royal feel */}
         <div
           className="absolute inset-0"
