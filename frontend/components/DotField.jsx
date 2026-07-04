@@ -15,9 +15,9 @@ export default function DotField({
   spacing = 24,
   dotRadius = 1.3,
   baseAlpha = 0.2,
-  cursorRadius = 240,
-  bulgeStrength = 22,
-  glowRadius = 170,
+  cursorRadius = 200,
+  bulgeStrength = 20,
+  glowRadius = 100,
   dotColor = '200, 185, 245',
 }) {
   const canvasRef = useRef(null)

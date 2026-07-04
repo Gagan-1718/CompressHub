@@ -18,6 +18,12 @@ export default function Header() {
         {/* Navigation & CTA */}
         <div className="flex items-center gap-8">
           <Link
+            href="/enhance"
+            className="text-gray-300 hover:text-white font-medium transition-colors duration-200 hidden sm:block"
+          >
+            Enhance
+          </Link>
+          <Link
             href="/how-it-works"
             className="text-gray-300 hover:text-white font-medium transition-colors duration-200 hidden sm:block"
           >

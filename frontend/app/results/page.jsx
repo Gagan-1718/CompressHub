@@ -6,10 +6,10 @@ import Link from 'next/link'
 import ImageComparison from '@/components/ImageComparison'
 import AlgorithmAnalysis from '@/components/AlgorithmAnalysis'
 import AiCaption from '@/components/AiCaption'
-import ImageEnhance from '@/components/ImageEnhance'
 import TiltCard from '@/components/TiltCard'
 import { getApiUrl } from '@/lib/api'
-import { Download, ArrowLeft, Loader, BarChart3, Maximize2 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Download, ArrowLeft, Loader, BarChart3, Maximize2, Wand2 } from 'lucide-react'
 
 function formatBytes(bytes) {
   if (bytes == null) return '--'
@@ -42,9 +42,18 @@ async function downloadJob(jobId) {
 
 function ResultsContent() {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(null) // job_id | 'all' | null
+
+  const openInEnhance = (result) => {
+    try {
+      sessionStorage.setItem('enhance:image', result.original_image)
+      sessionStorage.setItem('enhance:name', result.filename || 'image')
+    } catch (_) {}
+    router.push('/enhance')
+  }
 
   useEffect(() => {
     const jobIdsParam = searchParams.get('jobIds')
@@ -177,7 +186,21 @@ function ResultsContent() {
             )}
 
             {compressionResult.original_image && (
-              <ImageEnhance imageUrl={compressionResult.original_image} />
+              <button
+                onClick={() => openInEnhance(compressionResult)}
+                className="w-full rounded-xl border border-amber-500/25 bg-amber-500/[0.05] hover:bg-amber-500/[0.1] transition-colors p-5 flex items-center justify-between gap-4 text-left"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-amber-500/20 rounded-lg">
+                    <Wand2 className="w-5 h-5 text-amber-400" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-white">Enhance this image</p>
+                    <p className="text-sm text-gray-400">Open the studio to adjust brightness, color, warmth and more</p>
+                  </div>
+                </div>
+                <span className="text-amber-300 text-sm font-semibold shrink-0">Open studio →</span>
+              </button>
             )}
           </section>
 
