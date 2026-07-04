@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import {
-  Upload, Download, RotateCcw, ZoomIn, ZoomOut, Maximize, ImageIcon, Wand2,
+  Download, RotateCcw, ZoomIn, ZoomOut, Maximize, ImageIcon, Wand2,
 } from 'lucide-react'
 
 /**
@@ -308,9 +308,6 @@ export default function EnhanceStudio() {
               <button onClick={() => { setZoom(1); setOffset({ x: 0, y: 0 }) }} className="p-2 rounded-lg hover:bg-white/10" aria-label="Fit"><Maximize className="w-4 h-4" /></button>
             </div>
           )}
-          <button onClick={() => fileInputRef.current?.click()} className="btn btn-outline text-sm px-3 py-2 flex items-center gap-1.5">
-            <Upload className="w-4 h-4" /> <span className="hidden sm:inline">Open</span>
-          </button>
           {hasImage && (
             <>
               <button onClick={reset} disabled={isDefault} className="btn btn-outline text-sm px-3 py-2 flex items-center gap-1.5 disabled:opacity-40">
