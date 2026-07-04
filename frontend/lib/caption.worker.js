@@ -8,6 +8,8 @@ import { pipeline, env } from '@xenova/transformers'
 env.allowLocalModels = false
 
 let captioner = null
+// vit-gpt2 is the captioning model reliably hosted for public/in-browser use
+// (BLIP/GIT repos are access-gated). Beam search below lifts its quality.
 const MODEL_ID = 'Xenova/vit-gpt2-image-captioning'
 
 self.addEventListener('message', async (event) => {
@@ -21,7 +23,9 @@ self.addEventListener('message', async (event) => {
     }
 
     self.postMessage({ status: 'analyzing' })
-    const output = await captioner(image)
+    // Beam search explores several caption hypotheses and keeps the best,
+    // producing more coherent, accurate descriptions than greedy decoding.
+    const output = await captioner(image, { max_new_tokens: 34, num_beams: 4 })
     const caption = Array.isArray(output) ? output[0]?.generated_text : output?.generated_text
     self.postMessage({ status: 'complete', caption: (caption || '').trim() })
   } catch (err) {

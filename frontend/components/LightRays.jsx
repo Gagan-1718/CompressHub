@@ -53,33 +53,50 @@ export default function LightRays({
   const spreadDeg = 30 + lightSpread * 40 // wider slivers for higher spread
   const fadeStop = `${Math.round(45 + fadeDistance * 45)}%`
 
+  // Fanned god-rays: soft slivers emanating from the top-center, blurred and
+  // masked so they fade with distance.
   const raysStyle = {
     position: 'absolute',
     top: `-${Math.round(rayLength * 8)}%`,
     left: '-20%',
     right: '-20%',
-    height: `${Math.round(rayLength * 70)}%`,
+    height: `${Math.round(rayLength * 75)}%`,
     background: `repeating-conic-gradient(from 180deg at 50% 0%,
       rgba(255,255,255,0) 0deg,
-      rgba(255,255,255,0) 3deg,
-      ${hexToRgba(raysColor, 0.022)} 4.5deg,
-      rgba(255,255,255,0) 6deg,
+      rgba(255,255,255,0) 2.5deg,
+      ${hexToRgba(raysColor, 0.10)} 4deg,
+      rgba(255,255,255,0) 5.5deg,
       rgba(255,255,255,0) ${(spreadDeg / 6).toFixed(1)}deg)`,
-    WebkitMaskImage: `radial-gradient(ellipse 55% 100% at 50% 0%, black 0%, transparent ${fadeStop})`,
-    maskImage: `radial-gradient(ellipse 55% 100% at 50% 0%, black 0%, transparent ${fadeStop})`,
-    filter: 'blur(9px)',
+    WebkitMaskImage: `radial-gradient(ellipse 60% 100% at 50% 0%, black 0%, transparent ${fadeStop})`,
+    maskImage: `radial-gradient(ellipse 60% 100% at 50% 0%, black 0%, transparent ${fadeStop})`,
+    filter: 'blur(6px)',
     mixBlendMode: 'screen',
   }
 
-  const sourceStyle = {
+  // Bright central beam — the defined spotlight core from the reference.
+  const beamStyle = {
     position: 'absolute',
-    top: '-14%',
+    top: '-10%',
     left: '50%',
     transform: 'translateX(-50%)',
-    width: '46%',
-    height: '55%',
-    background: `radial-gradient(ellipse 60% 55% at 50% 0%, ${hexToRgba(raysColor, 0.055)}, transparent 60%)`,
-    filter: 'blur(14px)',
+    width: '30%',
+    height: '85%',
+    background: `radial-gradient(ellipse 42% 70% at 50% 0%, ${hexToRgba(raysColor, 0.22)}, transparent 62%)`,
+    filter: 'blur(16px)',
+    mixBlendMode: 'screen',
+    pointerEvents: 'none',
+  }
+
+  // Hot source point at the very top-center
+  const sourceStyle = {
+    position: 'absolute',
+    top: '-16%',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    width: '40%',
+    height: '48%',
+    background: `radial-gradient(ellipse 55% 55% at 50% 0%, ${hexToRgba(raysColor, 0.28)}, transparent 55%)`,
+    filter: 'blur(20px)',
     mixBlendMode: 'screen',
     pointerEvents: 'none',
   }
@@ -88,6 +105,7 @@ export default function LightRays({
     <div aria-hidden="true" className={`pointer-events-none overflow-hidden ${className}`}>
       <div ref={ref} style={{ position: 'absolute', inset: 0 }}>
         <div style={raysStyle} />
+        <div style={beamStyle} />
         <div style={sourceStyle} />
       </div>
     </div>

@@ -9,8 +9,9 @@ export default function Header() {
       <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
         {/* Wordmark */}
         <Link href="/" className="group">
-          <span className="text-xl font-semibold tracking-tight text-white transition-colors group-hover:text-gray-300">
-            Compress<span className="text-blue-400">Hub</span>
+          <span className="text-2xl font-black tracking-tight transition-all duration-300 group-hover:drop-shadow-[0_0_12px_rgba(139,92,246,0.5)]">
+            <span className="text-white">Compress</span>
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500">Hub</span>
           </span>
         </Link>
 

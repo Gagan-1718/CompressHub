@@ -6,6 +6,7 @@ import Link from 'next/link'
 import ImageComparison from '@/components/ImageComparison'
 import AlgorithmAnalysis from '@/components/AlgorithmAnalysis'
 import AiCaption from '@/components/AiCaption'
+import ImageEnhance from '@/components/ImageEnhance'
 import TiltCard from '@/components/TiltCard'
 import { getApiUrl } from '@/lib/api'
 import { Download, ArrowLeft, Loader, BarChart3, Maximize2 } from 'lucide-react'
@@ -173,6 +174,10 @@ function ResultsContent() {
 
             {compressionResult.original_image && (
               <AiCaption imageUrl={compressionResult.original_image} />
+            )}
+
+            {compressionResult.original_image && (
+              <ImageEnhance imageUrl={compressionResult.original_image} />
             )}
           </section>
 
