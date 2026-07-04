@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { Upload, AlertCircle, CheckCircle, Sparkles } from 'lucide-react'
+import { Upload, AlertCircle, CheckCircle, Sparkles, Camera } from 'lucide-react'
 import { getApiUrl } from '@/lib/api'
+import CameraCapture from './CameraCapture'
 
 // Constants
 const ACCEPTED_FORMATS = ['image/jpeg', 'image/png', 'image/bmp', 'image/webp', 'image/gif', 'image/tiff']
@@ -13,6 +14,7 @@ export default function UploadDropZone({ onImagesSelect }) {
   const [isDragActive, setIsDragActive] = useState(false)
   const [error, setError] = useState(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [showCamera, setShowCamera] = useState(false)
 
   const validateFile = (file) => {
     if (!ACCEPTED_FORMATS.includes(file.type)) {
@@ -161,6 +163,13 @@ export default function UploadDropZone({ onImagesSelect }) {
   }
 
   return (
+    <>
+    {showCamera && (
+      <CameraCapture
+        onCapture={(file) => uploadFile(file)}
+        onClose={() => setShowCamera(false)}
+      />
+    )}
     <div
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
@@ -215,9 +224,23 @@ export default function UploadDropZone({ onImagesSelect }) {
           {isLoading ? 'Uploading...' : isDragActive ? 'Release to Upload' : 'Drop Your Images Here'}
         </h3>
 
-        <p className="text-gray-400 mb-6 transition-colors">
+        <p className="text-gray-400 mb-5 transition-colors">
           or click to browse &mdash; multiple files welcome
         </p>
+
+        {/* Take a photo (camera) */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            if (!isLoading) setShowCamera(true)
+          }}
+          disabled={isLoading}
+          className="mb-6 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/10 border border-white/15 text-white text-sm font-semibold hover:bg-white/15 hover:border-blue-400/50 transition-all disabled:opacity-50"
+        >
+          <Camera className="w-4 h-4 text-blue-400" />
+          Take a photo
+        </button>
 
         <div className="flex flex-wrap gap-2 justify-center mb-6">
           <span className="px-3 py-1 bg-blue-500/20 border border-blue-500/30 text-blue-300 text-xs font-semibold rounded-full">JPG</span>
@@ -281,5 +304,6 @@ export default function UploadDropZone({ onImagesSelect }) {
         </div>
       )}
     </div>
+    </>
   )
 }

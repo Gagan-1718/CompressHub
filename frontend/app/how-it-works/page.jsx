@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { ArrowLeft, Code2, Zap, BarChart3, Download, Check } from 'lucide-react'
+import CompressionAnimation from '@/components/CompressionAnimation'
 
 export default function HowItWorksPage() {
   const steps = [
@@ -103,6 +104,11 @@ export default function HowItWorksPage() {
           <p className="text-gray-600 dark:text-gray-400 mt-2 text-lg">
             Learn how image compression using Huffman encoding works step by step
           </p>
+        </div>
+
+        {/* Animated explainer */}
+        <div className="mb-16">
+          <CompressionAnimation />
         </div>
 
         {/* Steps Section */}

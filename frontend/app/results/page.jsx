@@ -5,6 +5,7 @@ import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import ImageComparison from '@/components/ImageComparison'
 import AlgorithmAnalysis from '@/components/AlgorithmAnalysis'
+import AiCaption from '@/components/AiCaption'
 import TiltCard from '@/components/TiltCard'
 import { getApiUrl } from '@/lib/api'
 import { Download, ArrowLeft, Loader, BarChart3, Maximize2 } from 'lucide-react'
@@ -169,6 +170,10 @@ function ResultsContent() {
             <div className="rounded-2xl bg-black/40 ring-1 ring-white/10 overflow-hidden">
               <ImageComparison compressionResult={compressionResult} />
             </div>
+
+            {compressionResult.original_image && (
+              <AiCaption imageUrl={compressionResult.original_image} />
+            )}
           </section>
 
           {/* Primary actions */}
