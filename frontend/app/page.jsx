@@ -2,6 +2,8 @@
 
 import Link from 'next/link'
 import { ArrowRight, Upload, BrainCircuit, Binary, Download, ShieldCheck, Gauge, FlaskConical } from 'lucide-react'
+import DotField from '@/components/DotField'
+import LightRays from '@/components/LightRays'
 
 export default function HomePage() {
   return (
@@ -12,7 +14,33 @@ export default function HomePage() {
       </div>
 
       {/* Hero */}
-      <section className="relative min-h-[80vh] flex items-center justify-center px-4 sm:px-6 lg:px-8 py-20 hero-mouse-glow">
+      <section className="relative min-h-[88vh] flex items-center justify-center px-4 sm:px-6 lg:px-8 py-20 overflow-hidden">
+        {/* Layered background: interactive dot field + light-ray tint */}
+        <div className="absolute inset-0 -z-0">
+          <DotField
+            className="absolute inset-0 w-full h-full"
+            dotRadius={2.3}
+            dotSpacing={16}
+            cursorRadius={420}
+            bulgeStrength={42}
+            glowRadius={110}
+            gradientFrom="rgba(168, 85, 247, 0.32)"
+            gradientTo="rgba(180, 151, 207, 0.16)"
+            glowColor="#0b0a12"
+          />
+          <LightRays
+            className="absolute inset-0"
+            raysColor="#ffffff"
+            lightSpread={0.8}
+            rayLength={2.1}
+            fadeDistance={0.4}
+            followMouse
+            mouseInfluence={0.2}
+          />
+          {/* Fade the effect into the page below */}
+          <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-b from-transparent to-black" />
+        </div>
+
         <div className="relative z-10 text-center max-w-4xl mx-auto">
           <p className="text-sm font-semibold text-blue-400 uppercase tracking-widest mb-6">
             Lossless image compression
