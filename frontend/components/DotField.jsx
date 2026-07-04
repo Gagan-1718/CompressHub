@@ -90,7 +90,8 @@ export default function DotField({
         let x = d.x
         let y = d.y
         let r = dotRadius
-        let alpha = 0.10 + d.ambient * 0.35
+        // Deliberately faint: the field should read as texture, not content
+        let alpha = 0.04 + d.ambient * 0.10
 
         const dx = d.x - mouse.x
         const dy = d.y - mouse.y
@@ -103,8 +104,8 @@ export default function DotField({
           y += Math.sin(ang) * push
           if (dist < glowRadius) {
             const g = 1 - dist / glowRadius
-            r += g * 1.6
-            alpha = Math.min(1, alpha + g * 0.6)
+            r += g * 0.9
+            alpha = Math.min(0.5, alpha + g * 0.22)
           }
         }
 
