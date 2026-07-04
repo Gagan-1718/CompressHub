@@ -7,40 +7,36 @@ import LightRays from '@/components/LightRays'
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen bg-black overflow-hidden">
-      {/* Ambient background */}
-      <div className="fixed inset-0 -z-10 top-20">
-        <div className="absolute inset-0 bg-gradient-to-br from-black via-slate-900/80 to-black" />
+    <div className="relative min-h-screen bg-[#050406] overflow-hidden">
+      {/* Full-page royal background: dot field + light rays, fixed so it flows
+          seamlessly behind the header and the whole page as it scrolls */}
+      <div className="fixed inset-0 -z-10">
+        <DotField
+          className="absolute inset-0 w-full h-full"
+          dotRadius={1.6}
+          dotSpacing={22}
+          cursorRadius={400}
+          bulgeStrength={32}
+          glowRadius={110}
+          gradientFrom="rgba(91, 55, 183, 0.12)"
+          gradientTo="rgba(120, 90, 190, 0.03)"
+          glowColor="#050406"
+        />
+        <LightRays
+          className="absolute inset-0"
+          raysColor="#e9d9ff"
+          lightSpread={0.8}
+          rayLength={2.1}
+          fadeDistance={0.45}
+          followMouse
+          mouseInfluence={0.18}
+        />
+        {/* Deep vignette for a rich, royal feel */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_15%,transparent_35%,rgba(0,0,0,0.55)_100%)]" />
       </div>
 
       {/* Hero */}
-      <section className="relative min-h-[88vh] flex items-center justify-center px-4 sm:px-6 lg:px-8 py-20 overflow-hidden">
-        {/* Layered background: interactive dot field + light-ray tint */}
-        <div className="absolute inset-0 -z-0">
-          <DotField
-            className="absolute inset-0 w-full h-full"
-            dotRadius={2}
-            dotSpacing={20}
-            cursorRadius={420}
-            bulgeStrength={40}
-            glowRadius={120}
-            gradientFrom="rgba(139, 92, 246, 0.20)"
-            gradientTo="rgba(168, 151, 207, 0.06)"
-            glowColor="#060509"
-          />
-          <LightRays
-            className="absolute inset-0"
-            raysColor="#ffffff"
-            lightSpread={0.8}
-            rayLength={2.1}
-            fadeDistance={0.4}
-            followMouse
-            mouseInfluence={0.2}
-          />
-          {/* Fade the effect into the page below */}
-          <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-b from-transparent to-black" />
-        </div>
-
+      <section className="relative min-h-[88vh] flex items-center justify-center px-4 sm:px-6 lg:px-8 py-20">
         <div className="relative z-10 text-center max-w-4xl mx-auto">
           <p className="text-sm font-semibold text-blue-400 uppercase tracking-widest mb-6">
             Lossless image compression
