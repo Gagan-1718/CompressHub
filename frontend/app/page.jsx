@@ -46,9 +46,12 @@ export default function HomePage() {
       {/* Hero */}
       <section className="relative min-h-[88vh] flex items-center justify-center px-4 sm:px-6 lg:px-8 py-20">
         <div className="relative z-10 text-center max-w-4xl mx-auto">
-          <p className="text-sm font-semibold text-blue-400 uppercase tracking-widest mb-6">
-            Lossless image compression
-          </p>
+          <div className="inline-flex items-center gap-2.5 mb-7 px-5 py-2 rounded-full border border-white/10 bg-white/[0.04] backdrop-blur-sm shadow-[0_0_25px_rgba(139,92,246,0.15)]">
+            <span className="w-2 h-2 rounded-full bg-gradient-to-r from-blue-400 to-purple-500 shadow-[0_0_8px_rgba(139,92,246,0.8)]" />
+            <span className="text-base sm:text-lg font-bold uppercase tracking-[0.2em] text-transparent bg-clip-text bg-gradient-to-r from-blue-300 via-purple-300 to-pink-300">
+              Compress without compromise
+            </span>
+          </div>
 
           <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black text-white mb-6 leading-tight">
             Shrink your images.
@@ -57,8 +60,8 @@ export default function HomePage() {
           </h1>
 
           <p className="text-lg sm:text-xl text-gray-300 mb-10 max-w-2xl mx-auto leading-relaxed">
-            A Huffman tree built live for every image, with the entropy math to prove it.
-            Every output is pixel-identical to the original.
+            Make your images smaller without losing any quality — fast, free, and
+            right in your browser. Every output is pixel-identical to the original.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
