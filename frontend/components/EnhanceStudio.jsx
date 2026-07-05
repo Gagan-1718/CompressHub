@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import {
   Download, RotateCcw, ZoomIn, ZoomOut, Maximize, ImageIcon, Wand2, Save,
 } from 'lucide-react'
-import ConfirmDialog from './ConfirmDialog'
+import SavePrompt from './SavePrompt'
 import { getApiUrl } from '@/lib/api'
 import { useToast } from './Toast'
 
@@ -444,16 +444,12 @@ export default function EnhanceStudio() {
         </aside>
       </div>
 
-      <ConfirmDialog
+      <SavePrompt
         open={savePrompt}
-        icon={Save}
-        title="Save to library?"
-        message="Save this enhanced image to your library so you can find and re-download it later."
-        confirmLabel="Save to library"
-        cancelLabel="Not now"
+        message="Save this enhanced image to your library?"
         busy={saving}
-        onConfirm={handleSaveToLibrary}
-        onCancel={() => setSavePrompt(false)}
+        onYes={handleSaveToLibrary}
+        onNo={() => setSavePrompt(false)}
       />
     </div>
   )

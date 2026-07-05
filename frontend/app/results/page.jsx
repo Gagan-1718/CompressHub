@@ -6,7 +6,7 @@ import Link from 'next/link'
 import ImageComparison from '@/components/ImageComparison'
 import AlgorithmAnalysis from '@/components/AlgorithmAnalysis'
 import TiltCard from '@/components/TiltCard'
-import ConfirmDialog from '@/components/ConfirmDialog'
+import SavePrompt from '@/components/SavePrompt'
 import { getApiUrl } from '@/lib/api'
 import { useRouter } from 'next/navigation'
 import { useToast } from '@/components/Toast'
@@ -265,16 +265,12 @@ function ResultsContent() {
           )}
         </div>
 
-        <ConfirmDialog
+        <SavePrompt
           open={savePrompt}
-          icon={Save}
-          title="Save to library?"
-          message="Keep this compressed image in your library so you can find and re-download it later."
-          confirmLabel="Save to library"
-          cancelLabel="Not now"
+          message="Save this compressed image to your library?"
           busy={saving}
-          onConfirm={saveToLibrary}
-          onCancel={() => setSavePrompt(false)}
+          onYes={saveToLibrary}
+          onNo={() => setSavePrompt(false)}
         />
       </div>
     )
@@ -395,16 +391,12 @@ function ResultsContent() {
         </div>
       </div>
 
-      <ConfirmDialog
+      <SavePrompt
         open={savePrompt}
-        icon={Save}
-        title="Save to library?"
-        message={`Keep ${results.filter((r) => r.saved === false).length} compressed image(s) in your library to find and re-download later.`}
-        confirmLabel="Save to library"
-        cancelLabel="Not now"
+        message={`Save ${results.filter((r) => r.saved === false).length} compressed image(s) to your library?`}
         busy={saving}
-        onConfirm={saveToLibrary}
-        onCancel={() => setSavePrompt(false)}
+        onYes={saveToLibrary}
+        onNo={() => setSavePrompt(false)}
       />
     </div>
   )
