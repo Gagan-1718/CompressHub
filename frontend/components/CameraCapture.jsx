@@ -15,7 +15,10 @@ import { X, Camera, RefreshCw, SwitchCamera } from 'lucide-react'
 export default function CameraCapture({ onCapture, onClose }) {
   const videoRef = useRef(null)
   const streamRef = useRef(null)
-  const [facingMode, setFacingMode] = useState('environment') // rear on phones
+  // Rear camera on touch devices (phones); front webcam on desktop.
+  const [facingMode, setFacingMode] = useState(
+    () => (typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches ? 'environment' : 'user')
+  )
   const [error, setError] = useState(null)
   const [ready, setReady] = useState(false)
   const [hasMultipleCameras, setHasMultipleCameras] = useState(false)
@@ -31,29 +34,60 @@ export default function CameraCapture({ onCapture, onClose }) {
     setReady(false)
     setError(null)
     stopStream()
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: mode, width: { ideal: 1920 }, height: { ideal: 1080 } },
-        audio: false,
-      })
-      streamRef.current = stream
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        await videoRef.current.play()
-      }
-      setReady(true)
 
-      // Detect a second camera so we only show the flip button when useful
+    // Try progressively looser constraints: the preferred facing camera
+    // (as `ideal`, so it degrades gracefully), then any camera at all. This
+    // fixes desktops that have no rear ('environment') camera and drivers
+    // that reject over-specific constraints.
+    const attempts = [
+      { video: { facingMode: { ideal: mode }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false },
+      { video: { facingMode: { ideal: mode } }, audio: false },
+      { video: true, audio: false },
+    ]
+
+    let stream = null
+    let lastErr = null
+    for (const constraints of attempts) {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(constraints)
+        break
+      } catch (err) {
+        lastErr = err
+        // Permission denial won't be fixed by looser constraints — stop early.
+        if (err.name === 'NotAllowedError' || err.name === 'SecurityError') break
+      }
+    }
+
+    if (!stream) {
+      const name = lastErr?.name
+      if (name === 'NotAllowedError' || name === 'SecurityError') {
+        setError('Camera access was blocked. Allow camera permission for this site (and in your OS camera privacy settings), then retry.')
+      } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+        setError('No camera was found on this device.')
+      } else if (name === 'NotReadableError' || name === 'TrackStartError') {
+        setError('The camera is being used by another app (Zoom, Teams, etc.). Close it and retry.')
+      } else {
+        setError('Could not start the camera. Try closing other apps using it, then retry.')
+      }
+      return
+    }
+
+    streamRef.current = stream
+    if (videoRef.current) {
+      videoRef.current.srcObject = stream
+      // Don't await/treat play() as fatal — the muted video autoplays, and
+      // play() can reject spuriously (autoplay policy, re-render) even when
+      // the feed is fine.
+      videoRef.current.play().catch(() => {})
+    }
+    setReady(true)
+
+    // Detect a second camera so we only show the flip button when useful
+    try {
       const devices = await navigator.mediaDevices.enumerateDevices()
       setHasMultipleCameras(devices.filter((d) => d.kind === 'videoinput').length > 1)
-    } catch (err) {
-      if (err.name === 'NotAllowedError') {
-        setError('Camera permission denied. Allow camera access and try again.')
-      } else if (err.name === 'NotFoundError') {
-        setError('No camera found on this device.')
-      } else {
-        setError('Could not start the camera. It may be in use by another app.')
-      }
+    } catch (_) {
+      // enumerateDevices is best-effort; ignore failures
     }
   }, [stopStream])
 
@@ -132,6 +166,7 @@ export default function CameraCapture({ onCapture, onClose }) {
           <div className="relative w-full max-w-2xl aspect-[4/3] rounded-2xl overflow-hidden bg-black ring-1 ring-white/15">
             <video
               ref={videoRef}
+              autoPlay
               playsInline
               muted
               className="w-full h-full object-cover"
