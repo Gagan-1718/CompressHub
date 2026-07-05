@@ -12,9 +12,56 @@ import { X, Camera, RefreshCw, SwitchCamera } from 'lucide-react'
  * Requires a secure context (HTTPS or localhost) — browsers block camera
  * access otherwise.
  */
+// Actionable guidance per failure type. The two common Windows causes are a
+// browser permission block and the OS camera-privacy toggle.
+const ERROR_INFO = {
+  blocked: {
+    title: 'Camera access is blocked',
+    summary: 'Your browser or Windows is blocking the camera for this site.',
+    steps: [
+      'Click the camera / lock icon at the left of the address bar → set Camera to "Allow", then Retry.',
+      'Windows: Settings → Privacy & security → Camera → turn on "Camera access" and "Let apps access your camera".',
+      'Make sure "Let desktop apps access your camera" is also on (Chrome/Edge count as desktop apps).',
+    ],
+  },
+  inuse: {
+    title: 'Camera is in use',
+    summary: 'Another app is holding the camera.',
+    steps: [
+      'Close any app using the webcam — Zoom, Teams, Meet, OBS, the Windows Camera app.',
+      'Then click Retry.',
+    ],
+  },
+  notfound: {
+    title: 'No camera found',
+    summary: 'The browser can’t see a camera on this device.',
+    steps: [
+      'Check the webcam isn’t disabled in Device Manager or covered by a privacy shutter.',
+      'If you just plugged one in, reconnect it and Retry.',
+    ],
+  },
+  unsupported: {
+    title: 'Camera not supported here',
+    summary: 'This browser/context can’t use the camera.',
+    steps: [
+      'Use Chrome, Edge, or Safari (not an in-app browser like Instagram/WhatsApp).',
+      'The page must be on https:// or localhost.',
+    ],
+  },
+  generic: {
+    title: 'Could not start the camera',
+    summary: 'Something stopped the camera from starting.',
+    steps: [
+      'Close other apps that might use the webcam, then Retry.',
+      'If it persists, restart your browser.',
+    ],
+  },
+}
+
 export default function CameraCapture({ onCapture, onClose }) {
   const videoRef = useRef(null)
   const streamRef = useRef(null)
+  const epochRef = useRef(0) // invalidates stale/superseded getUserMedia calls
   // Rear camera on touch devices (phones); front webcam on desktop.
   const [facingMode, setFacingMode] = useState(
     () => (typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches ? 'environment' : 'user')
@@ -31,6 +78,7 @@ export default function CameraCapture({ onCapture, onClose }) {
   }, [])
 
   const startStream = useCallback(async (mode) => {
+    const epoch = ++epochRef.current
     setReady(false)
     setError(null)
     stopStream()
@@ -58,16 +106,23 @@ export default function CameraCapture({ onCapture, onClose }) {
       }
     }
 
+    // A newer start() or an unmount superseded this call — discard its result
+    // so React StrictMode's double-invoke (dev) can't leave a dead feed.
+    if (epoch !== epochRef.current) {
+      if (stream) stream.getTracks().forEach((t) => t.stop())
+      return
+    }
+
     if (!stream) {
       const name = lastErr?.name
       if (name === 'NotAllowedError' || name === 'SecurityError') {
-        setError('Camera access was blocked. Allow camera permission for this site (and in your OS camera privacy settings), then retry.')
+        setError('blocked')
       } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
-        setError('No camera was found on this device.')
-      } else if (name === 'NotReadableError' || name === 'TrackStartError') {
-        setError('The camera is being used by another app (Zoom, Teams, etc.). Close it and retry.')
+        setError('notfound')
+      } else if (name === 'NotReadableError' || name === 'TrackStartError' || name === 'AbortError') {
+        setError('inuse')
       } else {
-        setError('Could not start the camera. Try closing other apps using it, then retry.')
+        setError('generic')
       }
       return
     }
@@ -93,11 +148,14 @@ export default function CameraCapture({ onCapture, onClose }) {
 
   useEffect(() => {
     if (!navigator.mediaDevices?.getUserMedia) {
-      setError('This browser does not support camera access.')
+      setError('unsupported')
       return
     }
     startStream(facingMode)
-    return stopStream
+    return () => {
+      epochRef.current++ // invalidate any in-flight start
+      stopStream()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [facingMode])
 
@@ -142,16 +200,28 @@ export default function CameraCapture({ onCapture, onClose }) {
       </button>
 
       {error ? (
-        <div className="text-center max-w-sm">
+        <div className="text-center max-w-md">
           <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-red-500/15 border border-red-500/30 flex items-center justify-center">
             <Camera className="w-8 h-8 text-red-400" />
           </div>
-          <p className="text-white font-semibold mb-2">Camera unavailable</p>
-          <p className="text-gray-400 text-sm mb-6">{error}</p>
+          <p className="text-white font-semibold mb-1">{ERROR_INFO[error]?.title || 'Camera unavailable'}</p>
+          <p className="text-gray-400 text-sm mb-4">{ERROR_INFO[error]?.summary}</p>
+
+          {ERROR_INFO[error]?.steps && (
+            <ul className="text-left text-sm text-gray-300 space-y-1.5 mb-6 mx-auto max-w-sm">
+              {ERROR_INFO[error].steps.map((s, i) => (
+                <li key={i} className="flex gap-2">
+                  <span className="text-blue-400 flex-shrink-0">{i + 1}.</span>
+                  <span>{s}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+
           <div className="flex gap-3 justify-center">
             <button
               onClick={() => startStream(facingMode)}
-              className="btn btn-outline px-5 py-2.5 flex items-center gap-2"
+              className="btn btn-primary px-5 py-2.5 flex items-center gap-2"
             >
               <RefreshCw className="w-4 h-4" />
               Retry
