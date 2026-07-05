@@ -26,10 +26,14 @@ app = FastAPI(
     openapi_url="/api/openapi.json",
 )
 
-# Configure CORS middleware
+# Configure CORS middleware.
+# allow_origins covers local dev + an explicit FRONTEND_URL; allow_origin_regex
+# additionally permits every Vercel deployment domain (production + previews),
+# so the deployed frontend works without hardcoding one exact URL.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.allowed_origins,
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
