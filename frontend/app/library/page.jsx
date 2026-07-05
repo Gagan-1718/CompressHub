@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import TiltCard from '@/components/TiltCard'
 import { getApiUrl } from '@/lib/api'
-import { Download, Loader, Trash2, Maximize2, ImageIcon, FolderOpen } from 'lucide-react'
+import { Download, Loader, Trash2, Maximize2, ImageIcon, FolderOpen, Package, Wand2 } from 'lucide-react'
 
 function formatBytes(bytes) {
   if (bytes == null) return '--'
@@ -23,14 +23,12 @@ function formatDate(unixSeconds) {
 async function downloadJob(jobId) {
   const response = await fetch(getApiUrl(`/api/compression/download/${jobId}`))
   if (!response.ok) throw new Error('Download failed')
-
   const contentDisposition = response.headers.get('content-disposition')
-  let filename = 'compressed_image.png'
+  let filename = 'image.png'
   if (contentDisposition) {
     const match = contentDisposition.match(/filename[^;=\n]*=(["']?)([^"';]*)\1/)
     if (match) filename = match[2]
   }
-
   const blob = await response.blob()
   const url = window.URL.createObjectURL(blob)
   const link = document.createElement('a')
@@ -46,6 +44,7 @@ export default function LibraryPage() {
   const [jobs, setJobs] = useState([])
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(null) // job_id | 'all' | null
+  const [tab, setTab] = useState('compressed') // 'compressed' | 'enhanced'
 
   useEffect(() => {
     const fetchJobs = async () => {
@@ -64,56 +63,32 @@ export default function LibraryPage() {
     fetchJobs()
   }, [])
 
+  const compressed = useMemo(() => jobs.filter((j) => j.kind !== 'enhanced'), [jobs])
+  const enhanced = useMemo(() => jobs.filter((j) => j.kind === 'enhanced'), [jobs])
+  const current = tab === 'enhanced' ? enhanced : compressed
+
   const handleDownload = async (jobId) => {
     setBusy(jobId)
-    try {
-      await downloadJob(jobId)
-    } catch (error) {
-      console.error('Download failed:', error)
-    } finally {
-      setBusy(null)
-    }
+    try { await downloadJob(jobId) } catch (e) { console.error(e) } finally { setBusy(null) }
   }
 
   const handleDownloadAll = async () => {
     setBusy('all')
     try {
-      for (const job of jobs) {
+      for (const job of current) {
         await downloadJob(job.job_id)
         await new Promise((r) => setTimeout(r, 400))
       }
-    } catch (error) {
-      console.error('Download all failed:', error)
-    } finally {
-      setBusy(null)
-    }
+    } catch (e) { console.error(e) } finally { setBusy(null) }
   }
 
   const handleDelete = async (jobId) => {
     setBusy(jobId)
     try {
       const res = await fetch(getApiUrl(`/api/compression/job/${jobId}`), { method: 'DELETE' })
-      if (res.ok) {
-        setJobs((prev) => prev.filter((j) => j.job_id !== jobId))
-      }
-    } catch (error) {
-      console.error('Delete failed:', error)
-    } finally {
-      setBusy(null)
-    }
+      if (res.ok) setJobs((prev) => prev.filter((j) => j.job_id !== jobId))
+    } catch (e) { console.error(e) } finally { setBusy(null) }
   }
-
-  const totals = jobs.reduce(
-    (acc, j) => {
-      acc.original += j.original_size || 0
-      acc.compressed += j.compressed_size || 0
-      return acc
-    },
-    { original: 0, compressed: 0 }
-  )
-  const totalSavedPct = totals.original > 0
-    ? ((totals.original - totals.compressed) / totals.original) * 100
-    : 0
 
   if (loading) {
     return (
@@ -122,6 +97,25 @@ export default function LibraryPage() {
       </div>
     )
   }
+
+  const TabBox = ({ id, label, count, Icon }) => (
+    <button
+      onClick={() => setTab(id)}
+      className={`flex-1 flex items-center gap-3 rounded-2xl border p-4 sm:p-5 text-left transition-all ${
+        tab === id
+          ? 'border-blue-500/50 bg-blue-500/10 shadow-[0_0_25px_rgba(59,130,246,0.15)]'
+          : 'border-white/10 bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.04]'
+      }`}
+    >
+      <div className={`p-2.5 rounded-xl ${tab === id ? 'bg-blue-500/20' : 'bg-white/5'}`}>
+        <Icon className={`w-6 h-6 ${tab === id ? 'text-blue-300' : 'text-gray-400'}`} />
+      </div>
+      <div>
+        <p className={`font-bold ${tab === id ? 'text-white' : 'text-gray-300'}`}>{label}</p>
+        <p className="text-sm text-gray-500">{count} {count === 1 ? 'image' : 'images'}</p>
+      </div>
+    </button>
+  )
 
   return (
     <div className="min-h-screen bg-black pb-16">
@@ -133,80 +127,78 @@ export default function LibraryPage() {
 
       <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="mb-10 flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 animate-fade-in">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <FolderOpen className="w-8 h-8 text-blue-400" />
-              <h1 className="text-4xl sm:text-5xl font-black text-white">Library</h1>
-            </div>
-            {jobs.length > 0 ? (
-              <p className="text-gray-400">
-                {jobs.length} compressed {jobs.length === 1 ? 'image' : 'images'} · {formatBytes(totals.original)} → {formatBytes(totals.compressed)}
-                <span className="ml-2 font-semibold text-emerald-400">
-                  {Math.max(0, totalSavedPct).toFixed(1)}% saved overall
-                </span>
-              </p>
-            ) : (
-              <p className="text-gray-400">Every image you compress is saved here</p>
-            )}
-          </div>
+        <div className="mb-8 flex items-center gap-3 animate-fade-in">
+          <FolderOpen className="w-8 h-8 text-blue-400" />
+          <h1 className="text-4xl sm:text-5xl font-black text-white">Library</h1>
+        </div>
 
-          {jobs.length > 1 && (
+        {/* Two boxes: choose Compressed / Enhanced */}
+        <div className="flex flex-col sm:flex-row gap-3 mb-8 animate-fade-in">
+          <TabBox id="compressed" label="Compressed" count={compressed.length} Icon={Package} />
+          <TabBox id="enhanced" label="Enhanced" count={enhanced.length} Icon={Wand2} />
+        </div>
+
+        {/* Actions row */}
+        {current.length > 1 && (
+          <div className="flex justify-end mb-6">
             <button
               onClick={handleDownloadAll}
               disabled={busy !== null}
-              className="btn btn-primary px-8 py-3 font-semibold flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="btn btn-primary px-6 py-2.5 font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
             >
               <Download className="w-5 h-5" />
-              {busy === 'all' ? 'Downloading…' : `Download all (${jobs.length})`}
+              {busy === 'all' ? 'Downloading…' : `Download all (${current.length})`}
             </button>
-          )}
-        </div>
+          </div>
+        )}
 
-        {/* Empty state */}
-        {jobs.length === 0 ? (
+        {/* Grid or empty state */}
+        {current.length === 0 ? (
           <div className="card border border-white/10 p-16 text-center animate-fade-in">
             <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-blue-500/15 border border-blue-500/25 flex items-center justify-center">
               <ImageIcon className="w-8 h-8 text-blue-400" />
             </div>
-            <h2 className="text-2xl font-bold text-white mb-2">Nothing here yet</h2>
+            <h2 className="text-2xl font-bold text-white mb-2">
+              No {tab} images yet
+            </h2>
             <p className="text-gray-400 mb-8 max-w-md mx-auto">
-              Compress your first image and it will appear here, ready to re-download anytime.
+              {tab === 'enhanced'
+                ? 'Edit an image in the Enhance studio and choose “Save to library”.'
+                : 'Compress an image and choose “Save to library” to keep it here.'}
             </p>
-            <Link href="/upload" className="btn btn-primary px-8 py-3 inline-flex items-center gap-2">
-              Compress an image
+            <Link href={tab === 'enhanced' ? '/enhance' : '/upload'} className="btn btn-primary px-8 py-3 inline-flex items-center gap-2">
+              {tab === 'enhanced' ? 'Open Enhance studio' : 'Compress an image'}
             </Link>
           </div>
         ) : (
-          /* Library grid */
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
-            {jobs.map((job) => (
+            {current.map((job) => (
               <TiltCard key={job.job_id} className="rounded-2xl">
                 <div className="rounded-2xl overflow-hidden border border-white/10 bg-slate-900/80 shadow-lg hover:border-blue-500/30 transition-colors">
                   <div className="relative aspect-[4/3] bg-black">
                     {job.thumbnail && (
-                      <img
-                        src={job.thumbnail}
-                        alt={job.filename}
-                        className="w-full h-full object-contain"
-                        loading="lazy"
-                      />
+                      <img src={job.thumbnail} alt={job.filename} className="w-full h-full object-contain" loading="lazy" />
                     )}
-                    {job.savings_percent != null && (
+                    {job.kind !== 'enhanced' && job.savings_percent != null && (
                       <span className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 text-xs font-bold text-white shadow">
                         {Math.max(0, job.savings_percent).toFixed(1)}% saved
+                      </span>
+                    )}
+                    {job.kind === 'enhanced' && (
+                      <span className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-xs font-bold text-white shadow">
+                        Enhanced
                       </span>
                     )}
                   </div>
                   <div className="p-4 space-y-2">
                     <div className="flex items-baseline justify-between gap-2">
-                      <p className="text-sm font-semibold text-white truncate" title={job.filename}>
-                        {job.filename}
-                      </p>
+                      <p className="text-sm font-semibold text-white truncate" title={job.filename}>{job.filename}</p>
                       <p className="text-[11px] text-gray-500 whitespace-nowrap">{formatDate(job.completed_at)}</p>
                     </div>
                     <p className="text-xs text-gray-400">
-                      {formatBytes(job.original_size)} → <span className="text-white font-medium">{formatBytes(job.compressed_size)}</span>
+                      {job.kind === 'enhanced'
+                        ? formatBytes(job.compressed_size)
+                        : <>{formatBytes(job.original_size)} → <span className="text-white font-medium">{formatBytes(job.compressed_size)}</span></>}
                     </p>
                     <div className="flex gap-2 pt-2">
                       <button
@@ -217,13 +209,15 @@ export default function LibraryPage() {
                         <Download className="w-3.5 h-3.5" />
                         {busy === job.job_id ? 'Saving…' : 'Download'}
                       </button>
-                      <Link
-                        href={`/results?jobId=${job.job_id}`}
-                        className="flex-1 btn btn-outline text-xs py-2 flex items-center justify-center gap-1.5"
-                      >
-                        <Maximize2 className="w-3.5 h-3.5" />
-                        Details
-                      </Link>
+                      {job.kind !== 'enhanced' && (
+                        <Link
+                          href={`/results?jobId=${job.job_id}`}
+                          className="flex-1 btn btn-outline text-xs py-2 flex items-center justify-center gap-1.5"
+                        >
+                          <Maximize2 className="w-3.5 h-3.5" />
+                          Details
+                        </Link>
+                      )}
                       <button
                         onClick={() => handleDelete(job.job_id)}
                         disabled={busy !== null}

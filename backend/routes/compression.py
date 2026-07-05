@@ -190,7 +190,9 @@ def perform_compression(job_id: str, quality: str = 'high'):
         except Exception as analysis_error:
             logger.warning(f"Compression analysis failed for {job_id}: {analysis_error}")
 
-        # Update job with results
+        # Update job with results. `saved` stays False until the user opts to
+        # save it to the Library (via POST /save/{job_id}); a thumbnail is
+        # pre-built so that save is cheap.
         compression_jobs[job_id].update({
             'status': 'completed',
             'original_size': original_size,
@@ -202,21 +204,9 @@ def perform_compression(job_id: str, quality: str = 'high'):
             'compressed_base64': compressed_base64,
             'compressed_path': str(compressed_path),
             'metrics': metrics,
+            'saved': False,
+            'thumbnail': _make_thumbnail(compressed_image),
         })
-
-        # Persist for the Library (survives backend restarts)
-        try:
-            jobstore.save_completed(
-                job_id=job_id,
-                original_size=original_size,
-                compressed_size=compressed_size,
-                savings_percent=savings_percent,
-                compressed_path=str(compressed_path),
-                metrics=metrics,
-                thumbnail=_make_thumbnail(compressed_image),
-            )
-        except Exception as store_error:
-            logger.warning(f"Failed to persist job {job_id} to library: {store_error}")
 
         logger.info(f"Compression completed: {job_id} ({savings_percent:.1f}% savings)")
 
@@ -286,7 +276,6 @@ async def upload_image(file: UploadFile = File(...)):
             'image_info': image_info,
             'upload_time': time.time(),
         }
-        jobstore.save_upload(job_id, file.filename, str(filepath))
 
         logger.info(f"Image uploaded successfully: {file.filename} (Job ID: {job_id})")
         
@@ -309,13 +298,14 @@ async def upload_image(file: UploadFile = File(...)):
 
 
 @router.get("/jobs")
-async def list_jobs(limit: int = 100):
+async def list_jobs(kind: str = None, limit: int = 200):
     """
-    List previously compressed images (the Library).
+    List saved Library items. Optional `kind` filter: 'compressed' or 'enhanced'.
 
-    Served from the persistent store, so history survives backend restarts.
+    Served from the persistent store, so the Library survives backend restarts.
     """
-    jobs = jobstore.list_completed(limit=min(max(limit, 1), 500))
+    kind = kind if kind in ('compressed', 'enhanced') else None
+    jobs = jobstore.list_completed(kind=kind, limit=min(max(limit, 1), 500))
     return {'jobs': jobs, 'count': len(jobs)}
 
 
@@ -348,6 +338,8 @@ async def get_job_status(job_id: str):
             'status': db_job['status'],
             'file_size': db_job.get('original_size'),
         }
+        # A job found in the DB is, by definition, already in the library.
+        response['saved'] = True
         if db_job['status'] == 'completed':
             response['metrics'] = db_job.get('metrics', {})
             filepath = db_job.get('filepath')
@@ -367,6 +359,7 @@ async def get_job_status(job_id: str):
         'filename': job['filename'],
         'status': job['status'],
         'file_size': job['file_size'],
+        'saved': job.get('saved', False),
     }
 
     # Include results if compression is completed
@@ -378,6 +371,74 @@ async def get_job_status(job_id: str):
         response['error'] = job.get('error', 'Unknown error')
 
     return response
+
+
+@router.post("/save/{job_id}")
+async def save_to_library(job_id: str):
+    """Persist a completed (in-memory) compression job to the Library."""
+    job = compression_jobs.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"Job not found: {job_id}")
+    if job.get('status') != 'completed':
+        raise HTTPException(status_code=400, detail="Job is not completed")
+
+    try:
+        jobstore.save_compressed(
+            job_id=job_id,
+            filename=job['filename'],
+            original_size=job['original_size'],
+            compressed_size=job['compressed_size'],
+            savings_percent=job['savings_percent'],
+            filepath=job.get('filepath'),
+            compressed_path=job['compressed_path'],
+            metrics=job['metrics'],
+            thumbnail=job.get('thumbnail', ''),
+        )
+        job['saved'] = True
+    except Exception as e:
+        logger.error(f"Failed to save job {job_id} to library: {e}")
+        raise HTTPException(status_code=500, detail="Could not save to library")
+
+    return {'job_id': job_id, 'saved': True, 'message': 'Saved to library'}
+
+
+@router.post("/save-enhanced")
+async def save_enhanced_image(payload: dict):
+    """Persist an edited image from the Enhance studio to the Library.
+
+    Body: { "filename": str, "image": "data:image/png;base64,..." }
+    """
+    filename = (payload.get('filename') or 'enhanced').strip()
+    image = payload.get('image') or ''
+    if not image.startswith('data:image'):
+        raise HTTPException(status_code=400, detail="Missing or invalid image data")
+
+    try:
+        b64 = image.split(',', 1)[1]
+        png_bytes = base64.b64decode(b64)
+        pil = Image.open(io.BytesIO(png_bytes))
+        pil.load()
+
+        job_id = generate_job_id()
+        out_dir = settings.compressed_dir
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_path = out_dir / f"{job_id}_enhanced.png"
+        out_path.write_bytes(png_bytes)
+
+        jobstore.save_enhanced(
+            job_id=job_id,
+            filename=filename if filename.lower().endswith('.png') else f"{filename}.png",
+            file_size=len(png_bytes),
+            image_path=str(out_path),
+            thumbnail=_make_thumbnail(pil),
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to save enhanced image: {e}")
+        raise HTTPException(status_code=500, detail="Could not save enhanced image")
+
+    return {'job_id': job_id, 'saved': True, 'message': 'Saved to library'}
 
 
 @router.post("/compress/{job_id}")
@@ -539,6 +600,16 @@ async def download_compressed_image(job_id: str, raw: bool = False):
     original_filename = job['filename']
     name = original_filename.rsplit('.', 1)[0] if '.' in original_filename else original_filename
     compressed_path = job.get('compressed_path')
+
+    # Enhanced Library items are stored as ready-to-serve PNG files.
+    if job.get('kind') == 'enhanced':
+        if compressed_path and Path(compressed_path).exists():
+            return FileResponse(
+                path=compressed_path,
+                filename=f"{name}.png",
+                media_type='image/png',
+            )
+        raise HTTPException(status_code=404, detail="Enhanced image not found")
 
     if raw:
         # The actual Huffman-coded artifact (tree metadata + coded bytes).

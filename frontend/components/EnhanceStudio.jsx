@@ -2,8 +2,11 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import {
-  Download, RotateCcw, ZoomIn, ZoomOut, Maximize, ImageIcon, Wand2,
+  Download, RotateCcw, ZoomIn, ZoomOut, Maximize, ImageIcon, Wand2, Save,
 } from 'lucide-react'
+import ConfirmDialog from './ConfirmDialog'
+import { getApiUrl } from '@/lib/api'
+import { useToast } from './Toast'
 
 /**
  * Enhance Studio — a full in-browser photo editor. Open any image (upload or
@@ -197,11 +200,14 @@ export default function EnhanceStudio() {
   const frameRef = useRef(0)
   const dragRef = useRef(null)
 
+  const { addToast } = useToast()
   const [adj, setAdj] = useState(DEFAULTS)
   const [hasImage, setHasImage] = useState(false)
   const [filename, setFilename] = useState('image')
   const [zoom, setZoom] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
+  const [savePrompt, setSavePrompt] = useState(false)
+  const [saving, setSaving] = useState(false)
 
   const loadImage = useCallback((src, name) => {
     const img = new Image()
@@ -267,6 +273,29 @@ export default function EnhanceStudio() {
     }, 'image/png')
   }
 
+  const handleSaveToLibrary = async () => {
+    const img = imgRef.current
+    if (!img) return
+    setSaving(true)
+    try {
+      const out = document.createElement('canvas')
+      renderTo(out, img, adj, img.width, img.height)
+      const dataUrl = out.toDataURL('image/png')
+      const res = await fetch(getApiUrl('/api/compression/save-enhanced'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename, image: dataUrl }),
+      })
+      if (!res.ok) throw new Error('Save failed')
+      addToast('Saved to library', 'success')
+    } catch (e) {
+      addToast('Could not save to library', 'error')
+    } finally {
+      setSaving(false)
+      setSavePrompt(false)
+    }
+  }
+
   const setVal = (key, v) => setAdj((a) => ({ ...a, [key]: v }))
   const applyPreset = (preset) => setAdj({ ...DEFAULTS, ...PRESETS[preset] })
   const reset = () => { setAdj(DEFAULTS); setZoom(1); setOffset({ x: 0, y: 0 }) }
@@ -312,6 +341,9 @@ export default function EnhanceStudio() {
             <>
               <button onClick={reset} disabled={isDefault} className="btn btn-outline text-sm px-3 py-2 flex items-center gap-1.5 disabled:opacity-40">
                 <RotateCcw className="w-4 h-4" /> <span className="hidden sm:inline">Reset</span>
+              </button>
+              <button onClick={() => setSavePrompt(true)} className="btn btn-outline text-sm px-3 py-2 flex items-center gap-1.5">
+                <Save className="w-4 h-4" /> <span className="hidden sm:inline">Save</span>
               </button>
               <button onClick={handleDownload} className="btn btn-primary text-sm px-4 py-2 flex items-center gap-1.5">
                 <Download className="w-4 h-4" /> <span className="hidden sm:inline">Download</span>
@@ -411,6 +443,18 @@ export default function EnhanceStudio() {
           </div>
         </aside>
       </div>
+
+      <ConfirmDialog
+        open={savePrompt}
+        icon={Save}
+        title="Save to library?"
+        message="Save this enhanced image to your library so you can find and re-download it later."
+        confirmLabel="Save to library"
+        cancelLabel="Not now"
+        busy={saving}
+        onConfirm={handleSaveToLibrary}
+        onCancel={() => setSavePrompt(false)}
+      />
     </div>
   )
 }

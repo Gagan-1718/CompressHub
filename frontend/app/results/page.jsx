@@ -5,11 +5,12 @@ import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import ImageComparison from '@/components/ImageComparison'
 import AlgorithmAnalysis from '@/components/AlgorithmAnalysis'
-import AiCaption from '@/components/AiCaption'
 import TiltCard from '@/components/TiltCard'
+import ConfirmDialog from '@/components/ConfirmDialog'
 import { getApiUrl } from '@/lib/api'
 import { useRouter } from 'next/navigation'
-import { Download, ArrowLeft, Loader, BarChart3, Maximize2, Wand2 } from 'lucide-react'
+import { useToast } from '@/components/Toast'
+import { Download, ArrowLeft, Loader, BarChart3, Maximize2, Wand2, Save } from 'lucide-react'
 
 function formatBytes(bytes) {
   if (bytes == null) return '--'
@@ -43,9 +44,27 @@ async function downloadJob(jobId) {
 function ResultsContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
+  const { addToast } = useToast()
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(null) // job_id | 'all' | null
+  const [savePrompt, setSavePrompt] = useState(false) // ask to save fresh results
+  const [saving, setSaving] = useState(false)
+
+  // Save every not-yet-saved result to the library
+  const saveToLibrary = async () => {
+    setSaving(true)
+    const unsaved = results.filter((r) => r.saved === false)
+    await Promise.allSettled(
+      unsaved.map((r) =>
+        fetch(getApiUrl(`/api/compression/save/${r.job_id}`), { method: 'POST' })
+      )
+    )
+    setResults((rs) => rs.map((r) => ({ ...r, saved: true })))
+    setSaving(false)
+    setSavePrompt(false)
+    addToast(unsaved.length > 1 ? `${unsaved.length} images saved to library` : 'Saved to library', 'success')
+  }
 
   const openInEnhance = (result) => {
     try {
@@ -79,11 +98,12 @@ function ResultsContent() {
             return res.json()
           })
         )
-        setResults(
-          settled
-            .filter((r) => r.status === 'fulfilled')
-            .map((r) => r.value)
-        )
+        const fetched = settled
+          .filter((r) => r.status === 'fulfilled')
+          .map((r) => r.value)
+        setResults(fetched)
+        // Offer to save to the library only for fresh, not-yet-saved results
+        if (fetched.some((r) => r.saved === false)) setSavePrompt(true)
       } catch (error) {
         console.error('Error fetching compression results:', error)
       } finally {
@@ -182,10 +202,6 @@ function ResultsContent() {
             </div>
 
             {compressionResult.original_image && (
-              <AiCaption imageUrl={compressionResult.original_image} />
-            )}
-
-            {compressionResult.original_image && (
               <button
                 onClick={() => openInEnhance(compressionResult)}
                 className="w-full rounded-xl border border-amber-500/25 bg-amber-500/[0.05] hover:bg-amber-500/[0.1] transition-colors p-5 flex items-center justify-between gap-4 text-left"
@@ -214,6 +230,15 @@ function ResultsContent() {
               <Download className="w-5 h-5" />
               {downloading ? 'Downloading…' : 'Download compressed image'}
             </button>
+            {compressionResult.saved === false && (
+              <button
+                onClick={() => setSavePrompt(true)}
+                className="w-full sm:w-auto btn btn-outline text-base px-8 py-3 font-semibold flex items-center justify-center gap-2"
+              >
+                <Save className="w-5 h-5" />
+                Save to library
+              </button>
+            )}
             <Link
               href="/upload"
               className="w-full sm:w-auto btn btn-outline text-base px-8 py-3 font-semibold flex items-center justify-center gap-2"
@@ -239,6 +264,18 @@ function ResultsContent() {
             </section>
           )}
         </div>
+
+        <ConfirmDialog
+          open={savePrompt}
+          icon={Save}
+          title="Save to library?"
+          message="Keep this compressed image in your library so you can find and re-download it later."
+          confirmLabel="Save to library"
+          cancelLabel="Not now"
+          busy={saving}
+          onConfirm={saveToLibrary}
+          onCancel={() => setSavePrompt(false)}
+        />
       </div>
     )
   }
@@ -281,14 +318,25 @@ function ResultsContent() {
             </p>
           </div>
 
-          <button
-            onClick={handleDownloadAll}
-            disabled={downloading !== null}
-            className="btn btn-primary text-base px-8 py-3 font-semibold flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            <Download className="w-5 h-5" />
-            {downloading === 'all' ? 'Downloading…' : `Download all (${results.length})`}
-          </button>
+          <div className="flex gap-3">
+            {results.some((r) => r.saved === false) && (
+              <button
+                onClick={() => setSavePrompt(true)}
+                className="btn btn-outline text-base px-6 py-3 font-semibold flex items-center justify-center gap-2"
+              >
+                <Save className="w-5 h-5" />
+                Save all
+              </button>
+            )}
+            <button
+              onClick={handleDownloadAll}
+              disabled={downloading !== null}
+              className="btn btn-primary text-base px-8 py-3 font-semibold flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <Download className="w-5 h-5" />
+              {downloading === 'all' ? 'Downloading…' : `Download all (${results.length})`}
+            </button>
+          </div>
         </div>
 
         {/* Per-image cards */}
@@ -346,6 +394,18 @@ function ResultsContent() {
           })}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={savePrompt}
+        icon={Save}
+        title="Save to library?"
+        message={`Keep ${results.filter((r) => r.saved === false).length} compressed image(s) in your library to find and re-download later.`}
+        confirmLabel="Save to library"
+        cancelLabel="Not now"
+        busy={saving}
+        onConfirm={saveToLibrary}
+        onCancel={() => setSavePrompt(false)}
+      />
     </div>
   )
 }
