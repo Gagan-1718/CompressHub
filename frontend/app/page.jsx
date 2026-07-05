@@ -46,12 +46,9 @@ export default function HomePage() {
       {/* Hero */}
       <section className="relative min-h-[88vh] flex items-center justify-center px-4 sm:px-6 lg:px-8 py-20">
         <div className="relative z-10 text-center max-w-4xl mx-auto">
-          <div className="inline-flex items-center gap-2.5 mb-7 px-5 py-2 rounded-full border border-white/10 bg-white/[0.04] backdrop-blur-sm shadow-[0_0_25px_rgba(139,92,246,0.15)]">
-            <span className="w-2 h-2 rounded-full bg-gradient-to-r from-blue-400 to-purple-500 shadow-[0_0_8px_rgba(139,92,246,0.8)]" />
-            <span className="text-base sm:text-lg font-bold uppercase tracking-[0.2em] text-transparent bg-clip-text bg-gradient-to-r from-blue-300 via-purple-300 to-pink-300">
-              Compress without compromise
-            </span>
-          </div>
+          <p className="text-base sm:text-lg font-bold uppercase tracking-[0.2em] mb-7 text-transparent bg-clip-text bg-gradient-to-r from-blue-300 via-purple-300 to-pink-300">
+            Compress without compromise
+          </p>
 
           <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black text-white mb-6 leading-tight">
             Shrink your images.
