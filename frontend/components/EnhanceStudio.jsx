@@ -5,7 +5,7 @@ import {
   Download, RotateCcw, ZoomIn, ZoomOut, Maximize, ImageIcon, Wand2, Save,
 } from 'lucide-react'
 import SavePrompt from './SavePrompt'
-import { getApiUrl } from '@/lib/api'
+import { addLibraryItem, makeThumbnail } from '@/lib/libraryDB'
 import { useToast } from './Toast'
 
 /**
@@ -281,12 +281,16 @@ export default function EnhanceStudio() {
       const out = document.createElement('canvas')
       renderTo(out, img, adj, img.width, img.height)
       const dataUrl = out.toDataURL('image/png')
-      const res = await fetch(getApiUrl('/api/compression/save-enhanced'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename, image: dataUrl }),
+      const thumbnail = await makeThumbnail(dataUrl)
+      // Rough byte size of the PNG data URL
+      const size = Math.round((dataUrl.length - dataUrl.indexOf(',') - 1) * 0.75)
+      await addLibraryItem({
+        kind: 'enhanced',
+        filename: `${filename}.png`,
+        image: dataUrl,
+        thumbnail,
+        compressedSize: size,
       })
-      if (!res.ok) throw new Error('Save failed')
       addToast('Saved to library', 'success')
     } catch (e) {
       addToast('Could not save to library', 'error')

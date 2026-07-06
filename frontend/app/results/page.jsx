@@ -8,6 +8,7 @@ import AlgorithmAnalysis from '@/components/AlgorithmAnalysis'
 import TiltCard from '@/components/TiltCard'
 import SavePrompt from '@/components/SavePrompt'
 import { getApiUrl } from '@/lib/api'
+import { addLibraryItem, makeThumbnail } from '@/lib/libraryDB'
 import { useRouter } from 'next/navigation'
 import { useToast } from '@/components/Toast'
 import { Download, ArrowLeft, Loader, BarChart3, Maximize2, Wand2, Save } from 'lucide-react'
@@ -50,20 +51,34 @@ function ResultsContent() {
   const [downloading, setDownloading] = useState(null) // job_id | 'all' | null
   const [savePrompt, setSavePrompt] = useState(false) // ask to save fresh results
   const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
 
-  // Save every not-yet-saved result to the library
+  // Save each result to this device's library (IndexedDB)
   const saveToLibrary = async () => {
     setSaving(true)
-    const unsaved = results.filter((r) => r.saved === false)
-    await Promise.allSettled(
-      unsaved.map((r) =>
-        fetch(getApiUrl(`/api/compression/save/${r.job_id}`), { method: 'POST' })
-      )
-    )
-    setResults((rs) => rs.map((r) => ({ ...r, saved: true })))
-    setSaving(false)
-    setSavePrompt(false)
-    addToast(unsaved.length > 1 ? `${unsaved.length} images saved to library` : 'Saved to library', 'success')
+    try {
+      for (const r of results) {
+        const fs = r.metrics?.file_sizes || {}
+        const image = r.compressed_image
+        const thumbnail = image ? await makeThumbnail(image) : null
+        await addLibraryItem({
+          kind: 'compressed',
+          filename: r.filename || 'image',
+          image,
+          thumbnail,
+          originalSize: fs.original_bytes,
+          compressedSize: fs.compressed_bytes,
+          savingsPercent: r.metrics?.compression?.percentage,
+        })
+      }
+      setSaved(true)
+      addToast(results.length > 1 ? `${results.length} images saved to library` : 'Saved to library', 'success')
+    } catch (e) {
+      addToast('Could not save to library', 'error')
+    } finally {
+      setSaving(false)
+      setSavePrompt(false)
+    }
   }
 
   const openInEnhance = (result) => {
@@ -102,8 +117,8 @@ function ResultsContent() {
           .filter((r) => r.status === 'fulfilled')
           .map((r) => r.value)
         setResults(fetched)
-        // Offer to save to the library only for fresh, not-yet-saved results
-        if (fetched.some((r) => r.saved === false)) setSavePrompt(true)
+        // Offer to save these fresh results to the device's library
+        if (fetched.length > 0) setSavePrompt(true)
       } catch (error) {
         console.error('Error fetching compression results:', error)
       } finally {
@@ -230,7 +245,7 @@ function ResultsContent() {
               <Download className="w-5 h-5" />
               {downloading ? 'Downloading…' : 'Download compressed image'}
             </button>
-            {compressionResult.saved === false && (
+            {!saved && (
               <button
                 onClick={() => setSavePrompt(true)}
                 className="w-full sm:w-auto btn btn-outline text-base px-8 py-3 font-semibold flex items-center justify-center gap-2"
@@ -315,7 +330,7 @@ function ResultsContent() {
           </div>
 
           <div className="flex gap-3">
-            {results.some((r) => r.saved === false) && (
+            {!saved && (
               <button
                 onClick={() => setSavePrompt(true)}
                 className="btn btn-outline text-base px-6 py-3 font-semibold flex items-center justify-center gap-2"
@@ -393,7 +408,7 @@ function ResultsContent() {
 
       <SavePrompt
         open={savePrompt}
-        message={`Save ${results.filter((r) => r.saved === false).length} compressed image(s) to your library?`}
+        message={`Save ${results.length} compressed image(s) to your library?`}
         busy={saving}
         onYes={saveToLibrary}
         onNo={() => setSavePrompt(false)}
