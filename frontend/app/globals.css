@@ -13,9 +13,10 @@ html {
 
 body {
   @apply bg-black text-white transition-colors duration-300;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  /* Inherit the Inter web font applied on <html> by next/font (do NOT set a
+     system font-family here — it would override Inter and each device would
+     fall back to its own system font, which is why the phone looked different). */
+  font-family: inherit;
 }
 
 @layer components {
