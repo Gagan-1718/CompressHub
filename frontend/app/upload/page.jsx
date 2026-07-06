@@ -49,10 +49,10 @@ export default function UploadPage() {
       <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-10 text-center animate-fade-in">
-          <h1 className="text-4xl sm:text-5xl font-black text-white mb-3">
+          <h1 className="text-3xl sm:text-5xl font-black text-white mb-3">
             Compress your images
           </h1>
-          <p className="text-lg text-gray-400 max-w-xl mx-auto">
+          <p className="text-base sm:text-lg text-gray-400 max-w-xl mx-auto">
             Lossless Huffman compression &mdash; one image or a whole batch
           </p>
         </div>

@@ -38,9 +38,11 @@ export default function Header() {
           </Link>
         </div>
 
-        {/* Mobile nav: just Enhance + Library in small text (no Compress button
-            — it lives in the hero; How it works stays in the footer). */}
-        <div className="flex sm:hidden items-center gap-5">
+        {/* Mobile nav: small text links (How it works stays in the footer). */}
+        <div className="flex sm:hidden items-center gap-4">
+          <Link href="/upload" className="text-xs text-gray-300 hover:text-white font-medium transition-colors">
+            Compress
+          </Link>
           <Link href="/enhance" className="text-xs text-gray-300 hover:text-white font-medium transition-colors">
             Enhance
           </Link>
