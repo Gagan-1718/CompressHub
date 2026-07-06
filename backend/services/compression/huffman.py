@@ -279,24 +279,32 @@ def encode_pixels(data: bytes, codes: Dict[int, str]) -> Tuple[bytes, int]:
     if not data:
         raise ValueError("Data cannot be empty")
 
-    # Build the full bit string (as '0'/'1' characters) in one vectorized pass.
-    # str.join is a single C-level pass, unlike repeated += which is much
-    # slower for large images (millions of pixel bytes).
+    # Encode in chunks so we never materialize one huge bit string for the whole
+    # image (a multi-megapixel photo would otherwise need hundreds of MB of RAM
+    # and OOM a small server). Each chunk is turned into '0'/'1' bits, byte-
+    # aligned bits are packed with numpy, and the <8 leftover bits carry to the
+    # next chunk. Memory stays bounded regardless of image size.
+    CHUNK = 1_000_000
+    out = bytearray()
+    carry = ""
     try:
-        bit_string = "".join(codes[byte_val] for byte_val in data)
+        for i in range(0, len(data), CHUNK):
+            chunk = data[i:i + CHUNK]
+            bits = carry + "".join(codes[b] for b in chunk)
+            full = (len(bits) // 8) * 8
+            if full:
+                arr = np.frombuffer(bits[:full].encode("ascii"), dtype=np.uint8) - ord("0")
+                out += np.packbits(arr).tobytes()
+            carry = bits[full:]
     except KeyError as e:
         raise KeyError(f"Byte value {e.args[0]} not found in codes")
 
-    padding = (8 - (len(bit_string) % 8)) % 8
-    if padding:
-        bit_string += "0" * padding
+    padding = (8 - len(carry)) % 8
+    if carry:
+        arr = np.frombuffer((carry + "0" * padding).encode("ascii"), dtype=np.uint8) - ord("0")
+        out += np.packbits(arr).tobytes()
 
-    # Pack bits into bytes using numpy instead of a Python loop over every
-    # byte boundary -- this is the dominant cost for large images.
-    bit_array = np.frombuffer(bit_string.encode("ascii"), dtype=np.uint8) - ord("0")
-    compressed_bytes = np.packbits(bit_array).tobytes()
-
-    return compressed_bytes, padding
+    return bytes(out), padding
 
 
 def decode_pixels(encoded_data: bytes, tree: HuffmanTree, padding: int) -> bytes:

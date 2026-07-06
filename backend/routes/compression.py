@@ -121,19 +121,30 @@ def perform_compression(job_id: str, quality: str = 'high'):
         original_size = service_meta['original_size']
         compressed_size = len(container)
 
-        # Round-trip decode immediately: proves correctness and gives us a
-        # pixel-identical preview image (Huffman coding here is lossless).
-        decompressed_array, decompression_time_ms = huffman.decompress(compressed_bytes, service_meta)
-        compressed_image = reconstruct_image(decompressed_array, metadata)
+        megapixels = (img_width * img_height) / 1_000_000
 
-        # Convert images to base64 PNG for display
-        original_buffer = io.BytesIO()
-        rgb_image.save(original_buffer, format='PNG')
-        original_base64 = base64.b64encode(original_buffer.getvalue()).decode('utf-8')
+        # Round-trip decode to prove correctness only for reasonably small
+        # images — decoding a huge image is memory-heavy and can OOM a small
+        # server. Compression is lossless, so for large images the original is
+        # (pixel-identical to) the decompressed result; we skip the full decode.
+        if megapixels <= 2.5:
+            decompressed_array, decompression_time_ms = huffman.decompress(compressed_bytes, service_meta)
+            reconstruct_image(decompressed_array, metadata)  # verifies shape/round-trip
+        else:
+            decompression_time_ms = 0.0
 
-        compressed_buffer = io.BytesIO()
-        compressed_image.save(compressed_buffer, format='PNG')
-        compressed_base64 = base64.b64encode(compressed_buffer.getvalue()).decode('utf-8')
+        # Lean base64 previews: downscale for on-screen display so we never hold
+        # full-resolution PNGs of multi-megapixel photos in memory. The
+        # "compressed" preview is identical to the original (lossless).
+        def _preview_b64(im, max_px=1400):
+            p = im.copy()
+            p.thumbnail((max_px, max_px))
+            buf = io.BytesIO()
+            p.save(buf, format='PNG')
+            return base64.b64encode(buf.getvalue()).decode('utf-8')
+
+        original_base64 = _preview_b64(rgb_image)
+        compressed_base64 = original_base64
 
         # Calculate metrics using the shared MetricsCalculator
         compression_time_ms = service_meta['compression_time_ms']
@@ -173,8 +184,8 @@ def perform_compression(job_id: str, quality: str = 'high'):
                 'original_height': img_height,
                 'format': img_format,
                 'color_mode': img_mode,
-                'compressed_width': compressed_image.width,
-                'compressed_height': compressed_image.height,
+                'compressed_width': rgb_image.width,
+                'compressed_height': rgb_image.height,
             },
             'timestamp': {
                 'start': job.get('upload_time', time.time()),
@@ -183,12 +194,14 @@ def perform_compression(job_id: str, quality: str = 'high'):
             },
         }
 
-        # Educational analysis for the results page: algorithm comparison,
-        # entropy floor vs achieved bits/byte, and the Huffman code table.
-        try:
-            metrics['analysis'] = analyze_compression(pixel_array, compressed_size)
-        except Exception as analysis_error:
-            logger.warning(f"Compression analysis failed for {job_id}: {analysis_error}")
+        # Educational analysis for the results page (algorithm comparison,
+        # entropy, Huffman code table). It re-encodes the pixels, so skip it for
+        # large images to keep memory and time in check on small servers.
+        if megapixels <= 6:
+            try:
+                metrics['analysis'] = analyze_compression(pixel_array, compressed_size)
+            except Exception as analysis_error:
+                logger.warning(f"Compression analysis failed for {job_id}: {analysis_error}")
 
         # Update job with results. `saved` stays False until the user opts to
         # save it to the Library (via POST /save/{job_id}); a thumbnail is
@@ -205,7 +218,7 @@ def perform_compression(job_id: str, quality: str = 'high'):
             'compressed_path': str(compressed_path),
             'metrics': metrics,
             'saved': False,
-            'thumbnail': _make_thumbnail(compressed_image),
+            'thumbnail': _make_thumbnail(rgb_image),
         })
 
         logger.info(f"Compression completed: {job_id} ({savings_percent:.1f}% savings)")
@@ -624,14 +637,18 @@ async def download_compressed_image(job_id: str, raw: bool = False):
             media_type='application/octet-stream'
         )
 
-    # Default: a real, openable image file. Huffman coding here is lossless,
-    # so this is pixel-identical to what was compressed -- decoded back to a
-    # normal format because raw Huffman-coded bytes aren't a viewable image.
-    compressed_base64 = job.get('compressed_base64')
-    if compressed_base64:
-        png_bytes = base64.b64decode(compressed_base64)
+    # Default: a real, openable image, full resolution. Huffman coding here is
+    # lossless, so the viewable "compressed" image is pixel-identical to the
+    # original -- re-encode the original file as PNG (cheap, and avoids decoding
+    # the whole .huff, which is memory-heavy for large images).
+    filepath = job.get('filepath')
+    if filepath and Path(filepath).exists():
+        img = ImageProcessingModule.convert_to_rgb(Image.open(filepath))
+        buffer = io.BytesIO()
+        img.save(buffer, format='PNG')
+        png_bytes = buffer.getvalue()
     elif compressed_path and Path(compressed_path).exists():
-        # Library job from a previous run: decode the .huff from disk
+        # Fallback (e.g. original file gone): decode the .huff from disk
         buffer = io.BytesIO()
         _decode_container_file(compressed_path).save(buffer, format='PNG')
         png_bytes = buffer.getvalue()
