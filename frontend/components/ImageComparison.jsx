@@ -123,6 +123,24 @@ export default function ImageComparison({ compressionResult }) {
         </div>
       </div>
 
+      {/* Honest note when the upload was already compressed as tightly as
+          lossless can manage (e.g. a JPEG). We return the original unchanged
+          rather than a larger file. */}
+      {fileSizes.already_optimized && (
+        <p className="text-xs text-gray-400 bg-white/5 border border-white/10 rounded-lg p-3 leading-relaxed">
+          This image is already compressed about as far as a{" "}
+          <span className="text-gray-200 font-medium">lossless</span> method can go
+          (it&rsquo;s a {(fileSizes.delivered_format || "photo").toUpperCase()} / already-optimized file).
+          Rather than hand you a <span className="text-gray-200 font-medium">larger</span> file, we deliver your
+          original unchanged &mdash; the size you download is exactly what you see above.
+        </p>
+      )}
+
+      {/* The exact size shown is the exact file you download. */}
+      <p className="text-[11px] text-gray-500 text-center">
+        The compressed size above is the exact file the download button gives you &mdash; verify it in your file explorer.
+      </p>
+
       {/* Fullscreen lightbox: click a thumbnail to inspect at full size */}
       {lightbox && (
         <div

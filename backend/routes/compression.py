@@ -78,6 +78,55 @@ def _make_thumbnail(image: Image.Image, max_px: int = 320) -> str:
     return f"data:image/jpeg;base64,{base64.b64encode(buffer.getvalue()).decode('utf-8')}"
 
 
+def _build_deliverable(rgb_image: Image.Image, original_path: str, uploaded_size: int):
+    """Produce the exact file the user downloads.
+
+    We hand back the smallest *lossless* (pixel-identical) re-encoding of the
+    image. If we cannot beat the file the user uploaded -- e.g. it is already a
+    JPEG, which lossless coding fundamentally cannot shrink -- we return their
+    original file unchanged, so the download is *never larger* than what they
+    gave us.
+
+    Returns (bytes, extension, mime, already_optimized).
+    """
+    w, h = rgb_image.size
+    mp = (w * h) / 1_000_000
+    candidates = []  # (bytes, ext, mime)
+
+    # Lossless WebP: typically the smallest lossless image format, and exactly
+    # pixel-identical to the original. `method` trades speed for ratio.
+    try:
+        buf = io.BytesIO()
+        rgb_image.save(buf, format='WEBP', lossless=True, method=4 if mp > 2 else 6)
+        candidates.append((buf.getvalue(), 'webp', 'image/webp'))
+    except Exception as e:
+        logger.warning(f"Lossless WebP encode unavailable/failed: {e}")
+
+    # Optimized PNG (also lossless). `optimize=True` is slow, so only attempt it
+    # for smaller images.
+    if mp <= 4:
+        try:
+            buf = io.BytesIO()
+            rgb_image.save(buf, format='PNG', optimize=True)
+            candidates.append((buf.getvalue(), 'png', 'image/png'))
+        except Exception as e:
+            logger.warning(f"Optimized PNG encode failed: {e}")
+
+    orig_bytes = Path(original_path).read_bytes()
+    best = min(candidates, key=lambda c: len(c[0])) if candidates else None
+
+    if best is None or len(best[0]) >= uploaded_size:
+        # Nothing lossless beats what they uploaded -> return it unchanged.
+        ext = (Path(original_path).suffix.lstrip('.').lower() or 'img')
+        mime = {
+            'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png',
+            'webp': 'image/webp', 'bmp': 'image/bmp', 'gif': 'image/gif',
+        }.get(ext, 'application/octet-stream')
+        return orig_bytes, ext, mime, True
+
+    return best[0], best[1], best[2], False
+
+
 def perform_compression(job_id: str, quality: str = 'high'):
     """Compress the uploaded image's pixel data using real Huffman coding.
 
@@ -101,7 +150,9 @@ def perform_compression(job_id: str, quality: str = 'high'):
         metadata = ImageProcessingModule.get_image_metadata(rgb_image, format=img_format)
         pixel_array = extract_pixel_array(rgb_image, flatten=False)
 
-        # Huffman-encode the raw pixel bytes
+        # Huffman-encode the raw pixel bytes into the ".huff" artifact. This is
+        # the real entropy-coded output; we keep it for the educational analysis
+        # (and, if saved, the library) and expose it via the raw download.
         huffman = HuffmanCompressionService()
         compressed_bytes, service_meta = huffman.compress(pixel_array)
         container = _build_huffman_container(compressed_bytes, service_meta)
@@ -110,16 +161,25 @@ def perform_compression(job_id: str, quality: str = 'high'):
         compressed_dir.mkdir(parents=True, exist_ok=True)
         compressed_path = compressed_dir / f"{job_id}_compressed.huff"
         compressed_path.write_bytes(container)
+        huffman_size = len(container)
 
-        # Huffman coding operates on the raw (uncompressed) pixel bytes, so
-        # that is the correct, honest baseline for the compression ratio --
-        # NOT the uploaded file's size. The uploaded file may already be a
-        # JPEG (itself compressed with a much stronger algorithm than plain
-        # Huffman coding), so comparing against it would be apples-to-oranges
-        # and could show a nonsensical negative "compression" percentage even
-        # when Huffman coding is working correctly.
-        original_size = service_meta['original_size']
-        compressed_size = len(container)
+        # Build the file the user actually downloads: the smallest *lossless*
+        # (pixel-identical) copy of the image, or their original file unchanged
+        # if lossless coding cannot beat it (e.g. an already-compressed JPEG).
+        # This fixes two things the previous version got wrong:
+        #   1. the size shown in the app now equals the exact file that
+        #      downloads and lands in the file explorer (byte for byte), and
+        #   2. the download is never larger than what the user uploaded.
+        deliverable_bytes, deliverable_ext, deliverable_mime, already_optimized = _build_deliverable(
+            rgb_image, original_path, uploaded_file_size
+        )
+        download_path = compressed_dir / f"{job_id}_download.{deliverable_ext}"
+        download_path.write_bytes(deliverable_bytes)
+
+        # Honest, verifiable baseline: the file the user uploaded vs. the exact
+        # file we hand back to them.
+        original_size = uploaded_file_size
+        compressed_size = len(deliverable_bytes)
 
         megapixels = (img_width * img_height) / 1_000_000
 
@@ -169,9 +229,13 @@ def perform_compression(job_id: str, quality: str = 'high'):
                 'compressed_bytes': compressed_size,
                 'original_formatted': format_file_size(original_size),
                 'compressed_formatted': format_file_size(compressed_size),
-                'saved_formatted': format_file_size(saved_bytes),
+                'saved_formatted': format_file_size(max(0, saved_bytes)),
                 'uploaded_file_bytes': uploaded_file_size,
                 'uploaded_file_formatted': format_file_size(uploaded_file_size),
+                # Extra context for the results UI:
+                'already_optimized': already_optimized,
+                'delivered_format': deliverable_ext,
+                'huffman_bytes': huffman_size,
             },
             'compression': {
                 'ratio': round(compression_ratio, 2),
@@ -199,7 +263,7 @@ def perform_compression(job_id: str, quality: str = 'high'):
         # large images to keep memory and time in check on small servers.
         if megapixels <= 6:
             try:
-                metrics['analysis'] = analyze_compression(pixel_array, compressed_size)
+                metrics['analysis'] = analyze_compression(pixel_array, huffman_size)
             except Exception as analysis_error:
                 logger.warning(f"Compression analysis failed for {job_id}: {analysis_error}")
 
@@ -216,6 +280,9 @@ def perform_compression(job_id: str, quality: str = 'high'):
             'original_base64': original_base64,
             'compressed_base64': compressed_base64,
             'compressed_path': str(compressed_path),
+            'download_path': str(download_path),
+            'download_ext': deliverable_ext,
+            'download_mime': deliverable_mime,
             'metrics': metrics,
             'saved': False,
             'thumbnail': _make_thumbnail(rgb_image),
@@ -637,10 +704,22 @@ async def download_compressed_image(job_id: str, raw: bool = False):
             media_type='application/octet-stream'
         )
 
-    # Default: a real, openable image, full resolution. Huffman coding here is
-    # lossless, so the viewable "compressed" image is pixel-identical to the
-    # original -- re-encode the original file as PNG (cheap, and avoids decoding
-    # the whole .huff, which is memory-heavy for large images).
+    # Default: the exact file we prepared at compression time -- the smallest
+    # lossless copy, or the user's original unchanged. Serving these stored
+    # bytes guarantees the downloaded file size matches the size shown in the
+    # app, byte for byte, so the user can verify it in their file explorer.
+    download_path = job.get('download_path')
+    if download_path and Path(download_path).exists():
+        ext = job.get('download_ext') or 'png'
+        mime = job.get('download_mime') or 'image/png'
+        return FileResponse(
+            path=download_path,
+            filename=f"{name}.{ext}",
+            media_type=mime,
+        )
+
+    # Fallback for older jobs that predate the prepared deliverable: re-encode
+    # the original (lossless) as PNG.
     filepath = job.get('filepath')
     if filepath and Path(filepath).exists():
         img = ImageProcessingModule.convert_to_rgb(Image.open(filepath))
@@ -689,7 +768,7 @@ async def delete_job(job_id: str):
 
     # Clean up files on disk
     job = db_job or in_memory
-    for key in ('filepath', 'compressed_path'):
+    for key in ('filepath', 'compressed_path', 'download_path'):
         path = job.get(key)
         if path:
             try:
